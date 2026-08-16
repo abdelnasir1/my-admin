@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { supabaseClient } from '../../providers/supabase-client';
+import { useDashboardStore } from '../../store/dashboardStore';
 
 type TableRow = Record<string, any>;
 
@@ -25,7 +26,7 @@ function formatValue(value: unknown): string {
 
 export const ExampleList = () => {
   const [categories, setCategories] = useState<any[]>([]);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
+  const { exampleCategoryId, setExampleCategoryId } = useDashboardStore();
   const [rows, setRows] = useState<TableRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,8 +54,8 @@ export const ExampleList = () => {
 
       let query = supabaseClient.from('examples').select('*');
 
-      if (selectedCategoryId) {
-        query = query.eq('parent_category', selectedCategoryId);
+      if (exampleCategoryId) {
+        query = query.eq('parent_category', exampleCategoryId);
       }
 
       const { data, error: fetchError } = await query.limit(100);
@@ -68,7 +69,7 @@ export const ExampleList = () => {
       setIsLoading(false);
     }
     loadExamples();
-  }, [selectedCategoryId]);
+  }, [exampleCategoryId]);
 
   const columns = useMemo(() => {
     if (rows.length === 0) return [];
@@ -101,8 +102,8 @@ export const ExampleList = () => {
           <label htmlFor="category-filter" style={{ color: '#a5b4fc', fontWeight: 'bold' }}>تصفية حسب القسم </label>
           <select
             id="category-filter"
-            value={selectedCategoryId}
-            onChange={(e) => setSelectedCategoryId(e.target.value)}
+            value={exampleCategoryId}
+            onChange={(e) => setExampleCategoryId(e.target.value)}
             style={{
               background: 'rgba(15, 23, 42, 0.9)',
               color: 'white',
@@ -128,7 +129,7 @@ export const ExampleList = () => {
       ) : rows.length === 0 ? (
         <div className="empty-state">
           <h2>لا توجد بيانات</h2>
-          <p>{selectedCategoryId ? "لا توجد أمثلة مرتبطة بهذا القسم حالياً." : "قاعدة البيانات فارغة "}</p>
+          <p>{exampleCategoryId ? "لا توجد أمثلة مرتبطة بهذا القسم حالياً." : "قاعدة البيانات فارغة "}</p>
         </div>
       ) : (
         <div className="table-card large-table">
