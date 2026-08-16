@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router';
 import ReactFlow, {
   Background,
@@ -10,9 +10,11 @@ import ReactFlow, {
   MarkerType,
   ReactFlowProvider,
   useNodesState,
-  useEdgesState
+  useEdgesState,
+  useReactFlow
 } from 'reactflow';
 import { supabaseClient } from '../../providers/supabase-client';
+import { useDashboardStore } from '../../store/dashboardStore';
 
 import 'reactflow/dist/style.css';
 
@@ -63,6 +65,37 @@ const CategoryNode = ({ data }: { data: any }) => {
 
 const nodeTypes = {
   category: CategoryNode,
+};
+
+const CategoryMapContent = ({ nodes, edges, onNodesChange, onEdgesChange }: any) => {
+  const { setCategoryViewport, categoryViewport } = useDashboardStore();
+  const { setViewport } = useReactFlow();
+
+  const onMoveEnd = useCallback((_event: any, viewport: any) => {
+    setCategoryViewport(viewport);
+  }, [setCategoryViewport]);
+
+  useEffect(() => {
+    if (categoryViewport) {
+      setViewport(categoryViewport);
+    }
+  }, [setViewport, categoryViewport]);
+
+  return (
+    <ReactFlow
+      nodes={nodes}
+      edges={edges}
+      onNodesChange={onNodesChange}
+      onEdgesChange={onEdgesChange}
+      onMoveEnd={onMoveEnd}
+      nodeTypes={nodeTypes}
+      fitView={!categoryViewport}
+      fitViewOptions={{ padding: 0.1 }}
+    >
+      <Background color="#1e293b" gap={25} />
+      <Controls />
+    </ReactFlow>
+  );
 };
 
 export const CategoryList = () => {
@@ -186,18 +219,13 @@ export const CategoryList = () => {
       }}>
         {allCategories.length > 0 ? (
           <ReactFlowProvider>
-            <ReactFlow
+            <CategoryMapContent
+              allCategories={allCategories}
               nodes={nodes}
               edges={edges}
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
-              nodeTypes={nodeTypes}
-              fitView
-              fitViewOptions={{ padding: 0.1 }}
-            >
-              <Background color="#1e293b" gap={25} />
-              <Controls />
-            </ReactFlow>
+            />
           </ReactFlowProvider>
         ) : (
             <div className="empty-state" style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>

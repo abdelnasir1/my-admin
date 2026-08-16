@@ -5,7 +5,7 @@ import routerProvider, {
   UnsavedChangesNotifier,
 } from '@refinedev/react-router'
 import { dataProvider, liveProvider } from '@refinedev/supabase'
-import { BrowserRouter, Link, NavLink, Route, Routes } from 'react-router'
+import { BrowserRouter, Link, NavLink, Route, Routes, useLocation } from 'react-router'
 import { useEffect, useMemo, useState } from 'react'
 
 import { CreateExamplePage, ExampleList } from './pages/examples'
@@ -14,6 +14,7 @@ import './App.css'
 
 import authProvider from './providers/auth'
 import { supabaseClient } from './providers/supabase-client'
+import { useDashboardStore } from './store/dashboardStore'
 
 type TableRow = Record<string, any>
 
@@ -247,6 +248,13 @@ function TeacherDashboard() {
 }
 
 function Shell() {
+  const { setActiveTab } = useDashboardStore();
+  const location = useLocation();
+
+  useEffect(() => {
+    setActiveTab(location.pathname);
+  }, [location, setActiveTab]);
+
   const navItems = [
     { label: 'لوحة التحكم', to: '/' },
     ...resourceMeta.map((item) => ({ label: item.label, to: item.path })),

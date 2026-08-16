@@ -1,0 +1,9 @@
+services:
+  my-admin:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    restart: always
+    container_name: dashboard-admin
