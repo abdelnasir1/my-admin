@@ -1,43 +1,31 @@
-# ---------- Stage 1: Install dependencies ----------
-FROM node:20-alpine AS deps
-
-WORKDIR /app
-
-COPY package.json package-lock.json* ./
-
-RUN npm ci
-
-# ---------- Stage 2: Build ----------
+# ---------- Build stage ----------
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-ENV NODE_ENV=production
+# Copy package files
+COPY package.json package-lock.json ./
 
-COPY --from=deps /app/node_modules ./node_modules
+# Install dependencies
+RUN npm ci
+
+# Copy the rest of the code
 COPY . .
 
+# Build the app
 RUN npm run build
 
-# ---------- Stage 3: Production (Nginx) ----------
-FROM nginx:1.27-alpine AS runner
+# ---------- Production stage ----------
+FROM nginx:1.27-alpine
 
-# Remove default config
+# Remove default nginx config
 RUN rm /etc/nginx/conf.d/default.conf
 
-# Copy your custom nginx config
+# Copy custom nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Copy the built static files
+# Copy built files
 COPY --from=builder /app/dist /usr/share/nginx/html
-
-# Fix permissions
-RUN chown -R nginx:nginx /usr/share/nginx/html && \
-    chown -R nginx:nginx /var/cache/nginx && \
-    chown -R nginx:nginx /var/log/nginx && \
-    chown -R nginx:nginx /etc/nginx/conf.d
-
-USER nginx
 
 EXPOSE 80
 
