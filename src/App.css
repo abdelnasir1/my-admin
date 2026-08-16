@@ -335,6 +335,21 @@ button {
   text-decoration: none;
 }
 
+/* React Flow Fixes */
+.react-flow__pane {
+  cursor: grab;
+}
+
+.react-flow__controls {
+  box-shadow: 0 0 10px rgba(0,0,0,0.5);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.react-flow__background {
+  background-color: #0f172a;
+}
+
 .options-container {
   display: flex;
   flex-direction: column;
@@ -389,6 +404,7 @@ button {
   align-self: flex-start;
 }
 
+/* Tree Styles */
 .tree-container {
   background: rgba(15, 23, 42, 0.8);
   border: 1px solid rgba(148, 163, 184, 0.12);

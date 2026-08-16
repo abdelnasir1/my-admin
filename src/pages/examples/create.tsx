@@ -1,9 +1,6 @@
-import { useList } from '@refinedev/core';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { supabaseClient } from '../../providers/supabase-client';
-
-type TableRow = Record<string, any>;
 
 interface OptionItem {
   id: string;
@@ -12,17 +9,8 @@ interface OptionItem {
 }
 
 export const CreateExamplePage = () => {
-  const { data: categoriesData, isLoading: categoriesLoading } = useList({
-    resource: 'categories',
-    pagination: { mode: 'off' },
-  });
-  const categories = categoriesData?.data ?? [];
-
-  const { data: videosData, isLoading: videosLoading } = useList({
-    resource: 'videos',
-    pagination: { mode: 'off' },
-  });
-  const videos = videosData?.data ?? [];
+  const [categories, setCategories] = useState<any[]>([]);
+  const [videos, setVideos] = useState<any[]>([]);
 
   const [categoryName, setCategoryName] = useState('');
   const [categoryLevel, setCategoryLevel] = useState('1');
@@ -31,7 +19,7 @@ export const CreateExamplePage = () => {
 
   const [videoUrl, setVideoUrl] = useState('');
   const [videoPremium, setVideoPremium] = useState(true);
-  const [planType, setPlanType] = useState('basic');
+  const [planType, setPlanType] = useState('basicbook');
   const [selectedVideoId, setSelectedVideoId] = useState('');
 
   const [exampleName, setExampleName] = useState('');
@@ -46,6 +34,18 @@ export const CreateExamplePage = () => {
 
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+
+  // Fetch Resources (Direct)
+  useEffect(() => {
+    async function load() {
+        const { data: cats } = await supabaseClient.from('categories').select('*');
+        if (cats) setCategories(cats);
+
+        const { data: vids } = await supabaseClient.from('videos').select('*');
+        if (vids) setVideos(vids);
+    }
+    load();
+  }, []);
 
   const addOption = () => {
     setDynamicOptions([...dynamicOptions, { id: Math.random().toString(), text: '', isCorrect: false }]);
@@ -270,7 +270,7 @@ export const CreateExamplePage = () => {
             <input value={categoryName} onChange={(event) => setCategoryName(event.target.value)} placeholder="مثال: أساسيات الهندسة" />
           </label>
 
-          <button className="primary-button" onClick={createCategory} disabled={categoriesLoading}>
+          <button className="primary-button" onClick={createCategory}>
             حفظ القسم
           </button>
 
@@ -307,13 +307,13 @@ export const CreateExamplePage = () => {
           <label>
             نوع الخطة
             <select value={planType} onChange={(event) => setPlanType(event.target.value)}>
-              <option value="basic">أساسية (basic)</option>
-              <option value="pro">احترافية (pro)</option>
-              <option value="premium">متميزة (premium)</option>
+              <option value="basicbook">أساسية</option>
+              <option value="firstbook_advance">متخصصة كتاب أول</option>
+              <option value="secondbook_advance">متخصصة كتاب ثاني</option>
             </select>
           </label>
 
-          <button className="primary-button" onClick={createVideo} disabled={videosLoading}>
+          <button className="primary-button" onClick={createVideo}>
             حفظ الفيديو
           </button>
 

@@ -9,6 +9,7 @@ import { BrowserRouter, Link, NavLink, Route, Routes } from 'react-router'
 import { useEffect, useMemo, useState } from 'react'
 
 import { CreateExamplePage, ExampleList } from './pages/examples'
+import { CategoryList, CreateCategoryPage } from './pages/categories'
 import './App.css'
 
 import authProvider from './providers/auth'
@@ -274,6 +275,8 @@ function Shell() {
               element={
                 item.key === 'examples' ? (
                   <ExampleList />
+                ) : item.key === 'categories' ? (
+                  <CategoryList />
                 ) : (
                   <DatabaseTablePage resource={item.key} title={item.label} description={item.description} explanation={item.explanation} />
                 )
@@ -281,6 +284,7 @@ function Shell() {
             />
           ))}
           <Route path="/examples/create" element={<CreateExamplePage />} />
+          <Route path="/categories/create" element={<CreateCategoryPage />} />
         </Routes>
       </main>
     </div>

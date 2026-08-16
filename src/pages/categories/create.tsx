@@ -1,5 +1,4 @@
-import { useList } from '@refinedev/core';
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router';
 import { supabaseClient } from '../../providers/supabase-client';
 
@@ -9,18 +8,22 @@ export const CreateCategoryPage = () => {
   const parentParam = searchParams.get('parentId');
   const levelParam = searchParams.get('level');
 
-  const { data: categoriesData, isLoading: categoriesLoading } = useList({
-    resource: 'categories',
-    pagination: { mode: 'off' },
-  });
-  const categories = categoriesData?.data ?? [];
-
+  const [categories, setCategories] = useState<any[]>([]);
   const [name, setName] = useState('');
   const [level, setLevel] = useState(levelParam ? Number(levelParam) + 1 : 1);
   const [parentId, setParentId] = useState(parentParam || '');
 
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+
+  // Fetch Categories for dropdown
+  useEffect(() => {
+    async function load() {
+        const { data } = await supabaseClient.from('categories').select('id, name, level');
+        if (data) setCategories(data);
+    }
+    load();
+  }, []);
 
   // Update level automatically if parent is selected manually
   useEffect(() => {
@@ -71,7 +74,7 @@ export const CreateCategoryPage = () => {
           <p className="eyebrow">الأقسام</p>
           <h1>إنشاء قسم جديد</h1>
         </div>
-        <Link to="/categories" className="ghost-button button-link">العودة للشجرة</Link>
+        <Link to="/categories" className="ghost-button button-link">العودة للخريطة</Link>
       </header>
 
       <div className="creation-flow" style={{ gridTemplateColumns: '1fr' }}>

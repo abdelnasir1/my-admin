@@ -1,6 +1,6 @@
-import { useList } from '@refinedev/core';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
+import { supabaseClient } from '../../providers/supabase-client';
 
 type TableRow = Record<string, any>;
 
@@ -24,16 +24,65 @@ function formatValue(value: unknown): string {
 }
 
 export const ExampleList = () => {
-  const { data, isLoading, isError, error } = useList({
-    resource: 'examples',
-  });
+  const [categories, setCategories] = useState<any[]>([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
+  const [rows, setRows] = useState<TableRow[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const rows = data?.data ?? [];
+  // Fetch Level 3 Categories
+  useEffect(() => {
+    async function loadCategories() {
+      const { data, error } = await supabaseClient
+        .from('categories')
+        .select('id, name')
+        .eq('level', 3);
+
+      if (!error && data) {
+        setCategories(data);
+      }
+    }
+    loadCategories();
+  }, []);
+
+  // Fetch Examples (Direct Supabase Call)
+  useEffect(() => {
+    async function loadExamples() {
+      setIsLoading(true);
+      setError(null);
+
+      let query = supabaseClient.from('examples').select('*');
+
+      if (selectedCategoryId) {
+        query = query.eq('parent_category', selectedCategoryId);
+      }
+
+      const { data, error: fetchError } = await query.limit(100);
+
+      if (fetchError) {
+        setError(fetchError.message);
+        setRows([]);
+      } else {
+        setRows(data ?? []);
+      }
+      setIsLoading(false);
+    }
+    loadExamples();
+  }, [selectedCategoryId]);
 
   const columns = useMemo(() => {
+    if (rows.length === 0) return [];
     const keys = new Set<string>();
     rows.forEach((row) => Object.keys(row).forEach((key) => keys.add(key)));
-    return [...keys].slice(0, 6);
+    const preferredOrder = ['name', 'parent_category', 'video_id', 'options', 'question_image_url', 'thumbnail'];
+    return Array.from(keys).sort((a, b) => {
+      const idxA = preferredOrder.indexOf(a);
+      const idxB = preferredOrder.indexOf(b);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return a.localeCompare(b);
+    }).slice(0, 8);
   }, [rows]);
 
   return (
@@ -47,19 +96,39 @@ export const ExampleList = () => {
       </header>
 
       <div className="panel description-panel">
-        <h2>أسئلة الممارسة وموارد الصور</h2>
-        <p style={{ color: '#a5b4fc', marginBottom: '10px' }}>إضافة وتعديل الأسئلة التفاعلية المرتبطة بالفيديوهات لتعزيز التعلم.</p>
-        <p>{rows.length} سجل تم استرجاعه من Supabase</p>
+        <h2>تصفية وعرض الأسئلة</h2>
+        <div style={{ marginTop: '15px', display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <label htmlFor="category-filter" style={{ color: '#a5b4fc', fontWeight: 'bold' }}>تصفية حسب القسم </label>
+          <select
+            id="category-filter"
+            value={selectedCategoryId}
+            onChange={(e) => setSelectedCategoryId(e.target.value)}
+            style={{
+              background: 'rgba(15, 23, 42, 0.9)',
+              color: 'white',
+              border: '1px solid rgba(148, 163, 184, 0.3)',
+              padding: '8px 12px',
+              borderRadius: '8px',
+              minWidth: '200px'
+            }}
+          >
+            <option value="">جميع الأقسام</option>
+            {categories.map((cat) => (
+              <option key={cat.id} value={cat.id}>{cat.name}</option>
+            ))}
+          </select>
+        </div>
+        <p style={{ marginTop: '10px' }}>{rows.length} سجل تم استرجاعه</p>
       </div>
 
       {isLoading ? (
         <div className="empty-state"><p>جاري تحميل السجلات...</p></div>
-      ) : isError ? (
-        <div className="empty-state"><h2>مشكلة في الاتصال</h2><p>{error?.message}</p></div>
+      ) : error ? (
+        <div className="empty-state"><h2>مشكلة في الاتصال</h2><p>{error}</p></div>
       ) : rows.length === 0 ? (
         <div className="empty-state">
-          <h2>لا توجد بيانات بعد</h2>
-          <p>قم بتوصيل هذه الصفحة بجدولك وأدخل السجلات في Supabase لرؤيتها هنا.</p>
+          <h2>لا توجد بيانات</h2>
+          <p>{selectedCategoryId ? "لا توجد أمثلة مرتبطة بهذا القسم حالياً." : "قاعدة البيانات فارغة "}</p>
         </div>
       ) : (
         <div className="table-card large-table">
@@ -75,7 +144,13 @@ export const ExampleList = () => {
               {rows.map((row, index) => (
                 <tr key={`examples-${index}`}>
                   {columns.map((column) => (
-                    <td key={`examples-${column}-${index}`}>{formatValue(row[column])}</td>
+                    <td key={`examples-${column}-${index}`}>
+                      {column === 'question_image_url' || column === 'thumbnail' ? (
+                        <a href={row[column]} target="_blank" rel="noreferrer" style={{ color: '#6366f1' }}>عرض الصورة</a>
+                      ) : (
+                        formatValue(row[column])
+                      )}
+                    </td>
                   ))}
                 </tr>
               ))}

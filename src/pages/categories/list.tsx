@@ -1,7 +1,20 @@
-import { useList } from '@refinedev/core';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import Tree from 'react-d3-tree';
+import ReactFlow, {
+  Background,
+  Controls,
+  Handle,
+  Position,
+  Node,
+  Edge,
+  MarkerType,
+  ReactFlowProvider,
+  useNodesState,
+  useEdgesState
+} from 'reactflow';
+import { supabaseClient } from '../../providers/supabase-client';
+
+import 'reactflow/dist/style.css';
 
 interface Category {
   id: string;
@@ -10,70 +23,121 @@ interface Category {
   parent_id: string | null;
 }
 
-interface D3Node {
-  name: string;
-  attributes: {
-    id: string;
-    level: string;
-  };
-  children: D3Node[];
-}
+const CategoryNode = ({ data }: { data: any }) => {
+  return (
+    <div style={{
+      padding: '15px',
+      borderRadius: '12px',
+      background: 'rgba(30, 41, 59, 0.95)',
+      border: `2px solid ${data.isRoot ? '#6366f1' : '#475569'}`,
+      boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+      minWidth: '200px',
+      color: '#fff',
+      textAlign: 'center',
+    }}>
+      <Handle type="target" position={Position.Top} style={{ background: '#6366f1' }} />
+
+      <div style={{ fontWeight: 'bold', fontSize: '15px', marginBottom: '8px' }}>{data.label}</div>
+      <div style={{ fontSize: '11px', color: '#a5b4fc', marginBottom: '12px' }}>مستوى {data.level}</div>
+
+      <Link
+        to={`/categories/create?parentId=${data.id}&level=${data.level}`}
+        style={{
+          fontSize: '11px',
+          background: '#2dd4bf',
+          color: '#000',
+          padding: '6px 12px',
+          borderRadius: '6px',
+          textDecoration: 'none',
+          fontWeight: 'bold',
+          display: 'inline-block'
+        }}
+      >
+        + إضافة ابن
+      </Link>
+
+      <Handle type="source" position={Position.Bottom} style={{ background: '#6366f1' }} />
+    </div>
+  );
+};
+
+const nodeTypes = {
+  category: CategoryNode,
+};
 
 export const CategoryList = () => {
-  const { data, isLoading, isError, error } = useList<Category>({
-    resource: 'categories',
-    pagination: { mode: 'off' },
-  });
+  const [allCategories, setAllCategories] = useState<Category[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isError, setIsError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const allCategories = data?.data ?? [];
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
-  const treeData = useMemo(() => {
-    if (allCategories.length === 0) return null;
+  // Direct Fetch from Supabase
+  useEffect(() => {
+    async function load() {
+        setIsLoading(true);
+        const { data, error: fetchErr } = await supabaseClient.from('categories').select('*');
 
-    const idMap: Record<string, D3Node> = {};
-
-    // First pass: create all nodes
-    allCategories.forEach(cat => {
-      idMap[cat.id] = {
-        name: cat.name,
-        attributes: {
-          id: cat.id,
-          level: String(cat.level),
-        },
-        children: [],
-      };
-    });
-
-    const roots: D3Node[] = [];
-
-    // Second pass: build hierarchy
-    allCategories.forEach(cat => {
-      const node = idMap[cat.id];
-      if (cat.parent_id && idMap[cat.parent_id]) {
-        idMap[cat.parent_id].children.push(node);
-      } else if (Number(cat.level) === 1 || !cat.parent_id) {
-        roots.push(node);
-      }
-    });
-
-    // react-d3-tree expects a single root or an array
-    // If multiple roots, we wrap them in a virtual root
-    if (roots.length > 1) {
-      return {
-        name: 'المنهج الدراسي',
-        attributes: { id: 'root', level: '0' },
-        children: roots,
-      };
+        if (fetchErr) {
+            setIsError(true);
+            setError(fetchErr.message);
+        } else {
+            setAllCategories(data ?? []);
+        }
+        setIsLoading(false);
     }
-    return roots[0] || null;
-  }, [allCategories]);
+    load();
+  }, []);
+
+  useEffect(() => {
+    if (allCategories.length > 0) {
+      const initialNodes: Node[] = allCategories.map((cat) => {
+        const levelNodes = allCategories.filter(c => Number(c.level) === Number(cat.level));
+        const indexInLevel = levelNodes.indexOf(cat);
+
+        return {
+          id: cat.id,
+          type: 'category',
+          data: {
+            label: cat.name,
+            level: cat.level,
+            id: cat.id,
+            isRoot: Number(cat.level) === 1
+          },
+          position: {
+              x: indexInLevel * 250,
+              y: (Number(cat.level) - 1) * 200
+          },
+        };
+      });
+
+      const initialEdges: Edge[] = allCategories
+        .filter((cat) => cat.parent_id)
+        .map((cat) => ({
+          id: `e-${cat.parent_id}-${cat.id}`,
+          source: cat.parent_id!,
+          target: cat.id,
+          animated: true,
+          style: { stroke: '#6366f1', strokeWidth: 3 },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color: '#6366f1',
+          },
+        }));
+
+      setNodes(initialNodes);
+      setEdges(initialEdges);
+    }
+  }, [allCategories, setNodes, setEdges]);
 
   if (isError) {
     return (
       <div className="teacher-page">
         <div className="empty-state">
           <h2>خطأ في الاتصال</h2>
-          <p>{error?.message}</p>
+          <p>{error}</p>
         </div>
       </div>
     );
@@ -83,102 +147,63 @@ export const CategoryList = () => {
     return (
       <div className="teacher-page">
         <div className="empty-state">
-          <p>جاري تحميل الشجرة...</p>
+          <p>جاري تحميل الخريطة...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="teacher-page">
+    <div className="teacher-page" style={{ height: 'calc(100vh - 150px)', display: 'flex', flexDirection: 'column' }}>
       <header className="page-header">
         <div>
-          <p className="eyebrow">التنظيم</p>
-          <h1>شجرة الأقسام (D3)</h1>
+          <p className="eyebrow">التنظيم البصري</p>
+          <h1>خريطة الأقسام</h1>
         </div>
-        <Link to="/categories/create" className="primary-button button-link">إضافة قسم رئيسي</Link>
+        <div style={{ display: 'flex', gap: '10px' }}>
+             <button
+                onClick={() => window.location.reload()}
+                className="ghost-button"
+                style={{ fontSize: '12px' }}
+             >
+                تحديث الصفحة
+             </button>
+            <Link to="/categories/create" className="primary-button button-link">إضافة قسم رئيسي</Link>
+        </div>
       </header>
 
-      <div className="panel description-panel">
-        <h2>هيكل المنهج الدراسي التفاعلي</h2>
-        <p>يمكنك سحب الشجرة وتكبيرها/تصغيرها لرؤية التفاصيل.</p>
+      <div style={{ padding: '10px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', marginBottom: '10px', fontSize: '13px' }}>
+        <strong>حالة البيانات:</strong> تم تحميل {allCategories.length} قسم.
       </div>
 
-      <div id="treeWrapper" style={{ width: '100%', height: '600px', background: 'rgba(15, 23, 42, 0.8)', borderRadius: '16px', border: '1px solid rgba(148, 163, 184, 0.12)', overflow: 'hidden' }}>
-        {treeData ? (
-          <Tree
-            data={treeData}
-            orientation="horizontal"
-            pathFunc="step"
-            translate={{ x: 100, y: 300 }}
-            nodeSize={{ x: 250, y: 100 }}
-            renderCustomNodeElement={(rd3tProps) => (
-              <g>
-                <circle r="20" fill="#6366f1" />
-                <text
-                  fill="#ffffff"
-                  strokeWidth="0.5"
-                  x="30"
-                  y="-10"
-                  style={{ fontSize: '14px', fontWeight: 'bold' }}
-                >
-                  {rd3tProps.nodeDatum.name}
-                </text>
-                <text
-                  fill="#a5b4fc"
-                  x="30"
-                  y="15"
-                  style={{ fontSize: '12px' }}
-                >
-                  مستوى {rd3tProps.nodeDatum.attributes?.level}
-                </text>
-                <foreignObject width="100" height="40" x="30" y="25">
-                   <div style={{ display: 'flex', gap: '5px' }}>
-                      <Link
-                        to={`/categories/create?parentId=${rd3tProps.nodeDatum.attributes?.id}&level=${rd3tProps.nodeDatum.attributes?.level}`}
-                        style={{
-                          fontSize: '10px',
-                          background: 'rgba(45, 212, 191, 0.2)',
-                          color: '#2dd4bf',
-                          padding: '2px 5px',
-                          borderRadius: '4px',
-                          textDecoration: 'none',
-                          border: '1px solid rgba(45, 212, 191, 0.4)'
-                        }}
-                      >
-                        + ابن
-                      </Link>
-                   </div>
-                </foreignObject>
-              </g>
-            )}
-            styles={{
-              links: {
-                stroke: '#475569',
-                strokeWidth: 2,
-              },
-              nodes: {
-                node: {
-                  circle: {
-                    fill: '#6366f1',
-                    stroke: '#4338ca',
-                    strokeWidth: 2,
-                  },
-                },
-                leafNode: {
-                  circle: {
-                    fill: '#10b981',
-                    stroke: '#059669',
-                    strokeWidth: 2,
-                  },
-                },
-              }
-            }}
-          />
+      <div style={{
+        flex: 1,
+        minHeight: '500px',
+        background: '#0f172a',
+        borderRadius: '20px',
+        border: '3px solid #6366f1',
+        overflow: 'hidden',
+      }}>
+        {allCategories.length > 0 ? (
+          <ReactFlowProvider>
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              nodeTypes={nodeTypes}
+              fitView
+              fitViewOptions={{ padding: 0.1 }}
+            >
+              <Background color="#1e293b" gap={25} />
+              <Controls />
+            </ReactFlow>
+          </ReactFlowProvider>
         ) : (
-          <div className="empty-state">
-            <p>لا توجد بيانات متاحة لعرض الشجرة.</p>
-          </div>
+            <div className="empty-state" style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
+                <h2>لا توجد بيانات بصرية</h2>
+                <p>قاعدة البيانات لم ترجع أي أقسام.</p>
+            </div>
         )}
       </div>
     </div>
