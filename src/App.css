@@ -17,6 +17,7 @@ html, body, #root {
   background:
     radial-gradient(circle at top left, rgba(124, 92, 255, 0.18), transparent 22%),
     linear-gradient(180deg, #091421 0%, #0d1728 100%);
+  direction: rtl;
 }
 
 body {
@@ -35,7 +36,7 @@ button {
 .sidebar {
   width: 260px;
   padding: 28px 18px;
-  border-right: 1px solid rgba(148, 163, 184, 0.18);
+  border-left: 1px solid rgba(148, 163, 184, 0.18);
   background: rgba(9, 19, 31, 0.75);
   backdrop-filter: blur(12px);
 }
@@ -239,7 +240,7 @@ button {
 .table-card th,
 .table-card td {
   padding: 14px 16px;
-  text-align: left;
+  text-align: right;
   border-bottom: 1px solid rgba(148, 163, 184, 0.1);
   color: #dfe7f5;
   vertical-align: top;
@@ -332,6 +333,184 @@ button {
   align-items: center;
   justify-content: center;
   text-decoration: none;
+}
+
+.options-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.option-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(15, 23, 42, 0.7);
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.option-item input[type="text"] {
+  flex: 1;
+}
+
+.option-item label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 0;
+  white-space: nowrap;
+}
+
+.option-item input[type="checkbox"] {
+  width: auto;
+}
+
+.remove-option-btn {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.add-option-btn {
+  background: rgba(45, 212, 191, 0.15);
+  color: #99f6e4;
+  border: 1px solid rgba(45, 212, 191, 0.3);
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.tree-container {
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 16px;
+  padding: 32px;
+  min-height: 400px;
+}
+
+.tree-node-wrapper {
+  margin-bottom: 12px;
+  position: relative;
+}
+
+.tree-node {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px;
+  background: rgba(30, 41, 59, 0.4);
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  border-radius: 14px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  z-index: 2;
+}
+
+.tree-node:hover {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.4);
+  transform: translateX(-4px);
+  box-shadow: 4px 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.node-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.toggle-btn {
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  color: #a5b4fc;
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.toggle-btn:hover {
+  background: rgba(99, 102, 241, 0.25);
+  color: #ffffff;
+}
+
+.node-name {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: #f8fafc;
+}
+
+.node-level {
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6366f1;
+  background: rgba(99, 102, 241, 0.15);
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+.node-actions {
+  display: flex;
+  gap: 12px;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.tree-node:hover .node-actions {
+  opacity: 1;
+}
+
+.add-child-btn {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #2dd4bf;
+  text-decoration: none;
+  padding: 7px 14px;
+  background: rgba(45, 212, 191, 0.08);
+  border: 1px solid rgba(45, 212, 191, 0.2);
+  border-radius: 10px;
+  transition: all 0.2s;
+}
+
+.add-child-btn:hover {
+  background: rgba(45, 212, 191, 0.15);
+  border-color: #2dd4bf;
+  color: #ffffff;
+}
+
+.node-children {
+  margin-top: 12px;
+  padding-right: 12px;
+  border-right: 2px solid rgba(148, 163, 184, 0.08);
+  position: relative;
+}
+
+.node-children::before {
+  content: '';
+  position: absolute;
+  top: -12px;
+  right: -2px;
+  bottom: 24px;
+  width: 2px;
+  background: linear-gradient(to bottom, rgba(99, 102, 241, 0.2), transparent);
 }
 
 @media (max-width: 900px) {
