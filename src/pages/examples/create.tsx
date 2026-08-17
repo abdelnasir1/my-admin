@@ -21,6 +21,9 @@ export const CreateExamplePage = () => {
   const [videoPremium, setVideoPremium] = useState(true);
   const [planType, setPlanType] = useState('basicbook');
   const [selectedVideoId, setSelectedVideoId] = useState('');
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [videoUploadMessage, setVideoUploadMessage] = useState('');
 
   const [exampleName, setExampleName] = useState('');
   const [questionImageUrl, setQuestionImageUrl] = useState('');
@@ -90,9 +93,49 @@ export const CreateExamplePage = () => {
     setMessage('تم إنشاء القسم. الآن أضف أو اختر الفيديو قبل إنشاء المثال.');
   };
 
+  const uploadVideoToBucket = async () => {
+    if (!videoFile) {
+      setMessage('يرجى اختيار ملف فيديو أولاً.');
+      return;
+    }
+
+    setUploadingVideo(true);
+    setVideoUploadMessage('');
+    setMessage('');
+
+    const fileExt = videoFile.name.split('.').pop();
+    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+    const filePath = `videos/${fileName}`;
+
+    const { error: uploadError } = await supabaseClient.storage
+      .from('videos')
+      .upload(filePath, videoFile, {
+        cacheControl: '3600',
+        upsert: false,
+        contentType: videoFile.type,
+      });
+
+    if (uploadError) {
+      setMessage(`فشل رفع الفيديو: ${uploadError.message}`);
+      setUploadingVideo(false);
+      return;
+    }
+
+    const { data: { publicUrl } } = supabaseClient.storage
+      .from('videos')
+      .getPublicUrl(filePath);
+
+    setVideoUrl(publicUrl);
+    setUploadingVideo(false);
+    setVideoUploadMessage('تم رفع الفيديو إلى البوكيت بنجاح.');
+    setMessage('تم الحصول على رابط الفيديو. الآن يمكن حفظ سجل الفيديو.');
+  };
+
   const createVideo = async () => {
-    if (!videoUrl.trim()) {
-      setMessage('رابط الفيديو مطلوب.');
+    const finalVideoUrl = videoUrl.trim();
+
+    if (!finalVideoUrl) {
+      setMessage('يرجى رفع الفيديو أولاً أو إدخال رابط فيديو.');
       return;
     }
 
@@ -100,7 +143,7 @@ export const CreateExamplePage = () => {
       .from('videos')
       .insert([
         {
-          video_url: videoUrl.trim(),
+          video_url: finalVideoUrl,
           is_premium: videoPremium,
           plan_type: planType,
         },
@@ -292,7 +335,34 @@ export const CreateExamplePage = () => {
           <h2>2. اختيار أو إنشاء فيديو</h2>
 
           <label>
-            رابط الفيديو
+            ملف الفيديو
+            <input
+              type="file"
+              accept="video/*"
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null;
+                setVideoFile(file);
+                if (!file) {
+                  setVideoUrl('');
+                }
+              }}
+            />
+          </label>
+
+          <button className="primary-button" onClick={uploadVideoToBucket} disabled={uploadingVideo || !videoFile}>
+            {uploadingVideo ? 'جاري رفع الفيديو...' : 'رفع الفيديو إلى البوكيت'}
+          </button>
+
+          {videoUploadMessage && <div className="form-message" style={{ marginTop: '12px' }}>{videoUploadMessage}</div>}
+
+          {videoUrl && (
+            <div style={{ marginTop: '12px', color: '#7dd3fc', fontSize: '0.8rem', wordBreak: 'break-all' }}>
+              {videoUrl}
+            </div>
+          )}
+
+          <label>
+            رابط الفيديو (بديل)
             <input value={videoUrl} onChange={(event) => setVideoUrl(event.target.value)} placeholder="https://..." />
           </label>
 
@@ -314,7 +384,7 @@ export const CreateExamplePage = () => {
           </label>
 
           <button className="primary-button" onClick={createVideo}>
-            حفظ الفيديو
+            حفظ الفيديو في قاعدة البيانات
           </button>
 
           <label>
