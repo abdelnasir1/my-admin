@@ -1,8 +1,37 @@
 import { AuthProvider } from "@refinedev/core";
 import { supabaseClient } from "./supabase-client";
 
+const allowedEmails = (import.meta.env.VITE_ALLOWED_EMAILS || "you@example.com,admin@example.com")
+  .split(",")
+  .map((email: string) => email.trim().toLowerCase())
+  .filter(Boolean);
+
+const isAllowedEmail = (email: string) => allowedEmails.includes(email.trim().toLowerCase());
+
 const authProvider: AuthProvider = {
   login: async ({ email, password, providerName }) => {
+    const normalizedEmail = String(email ?? "").trim().toLowerCase();
+
+    if (!providerName && !normalizedEmail) {
+      return {
+        success: false,
+        error: {
+          message: "Login failed",
+          name: "Email is required",
+        },
+      };
+    }
+
+    if (!providerName && !isAllowedEmail(normalizedEmail)) {
+      return {
+        success: false,
+        error: {
+          message: "Unauthorized",
+          name: "This account is not allowed to access this dashboard.",
+        },
+      };
+    }
+
     // sign in with oauth
     try {
       if (providerName) {
@@ -27,7 +56,7 @@ const authProvider: AuthProvider = {
 
       // sign in with email and password
       const { data, error } = await supabaseClient.auth.signInWithPassword({
-        email,
+        email: normalizedEmail,
         password,
       });
 
@@ -60,9 +89,21 @@ const authProvider: AuthProvider = {
     };
   },
   register: async ({ email, password }) => {
+    const normalizedEmail = String(email ?? "").trim().toLowerCase();
+
+    if (!isAllowedEmail(normalizedEmail)) {
+      return {
+        success: false,
+        error: {
+          message: "Registration disabled",
+          name: "Only approved admin emails can register.",
+        },
+      };
+    }
+
     try {
       const { data, error } = await supabaseClient.auth.signUp({
-        email,
+        email: normalizedEmail,
         password,
       });
 

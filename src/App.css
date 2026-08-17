@@ -104,7 +104,9 @@ button {
 }
 
 .primary-button,
-.ghost-button {
+.ghost-button,
+.logout-button,
+.login-button {
   border: none;
   border-radius: 10px;
   cursor: pointer;
@@ -121,6 +123,15 @@ button {
   background: rgba(148, 163, 184, 0.08);
   color: #dfe7f5;
   padding: 8px 12px;
+}
+
+.logout-button {
+  margin-top: 18px;
+  width: 100%;
+  padding: 10px 12px;
+  background: rgba(239, 68, 68, 0.12);
+  color: #fecaca;
+  border: 1px solid rgba(239, 68, 68, 0.2);
 }
 
 .stats-grid {
@@ -333,6 +344,78 @@ button {
   align-items: center;
   justify-content: center;
   text-decoration: none;
+}
+
+.login-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.login-card {
+  width: min(440px, 100%);
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 20px;
+  padding: 32px 28px;
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.35);
+}
+
+.login-card h1 {
+  margin: 0 0 8px;
+  font-size: clamp(2rem, 4vw, 2.4rem);
+  color: #f8fafc;
+}
+
+.login-subtitle {
+  color: #b8c3d8;
+  margin: 0 0 24px;
+  font-size: 0.9rem;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.login-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: #dfe7f5;
+  font-weight: 600;
+}
+
+.login-form input {
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.9);
+  color: #f8fafc;
+  padding: 12px 14px;
+  font: inherit;
+}
+
+.login-error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #fecaca;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.92rem;
+}
+
+.login-button {
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px 18px;
+}
+
+.loading-card {
+  text-align: center;
+  color: #dfe7f5;
 }
 
 /* React Flow Fixes */

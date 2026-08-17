@@ -5,8 +5,8 @@ import routerProvider, {
   UnsavedChangesNotifier,
 } from '@refinedev/react-router'
 import { dataProvider, liveProvider } from '@refinedev/supabase'
-import { BrowserRouter, Link, NavLink, Route, Routes, useLocation } from 'react-router'
-import { useEffect, useMemo, useState } from 'react'
+import { BrowserRouter, Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router'
+import { type FormEvent, useEffect, useMemo, useState } from 'react'
 
 import { CreateExamplePage, ExampleList } from './pages/examples'
 import { CategoryList, CreateCategoryPage } from './pages/categories'
@@ -24,6 +24,15 @@ const dashboardStats = [
   { label: 'الاشتراكات النشطة', value: '18', change: '+3 اليوم' },
   { label: 'المدفوعات المعلقة', value: '6', change: '2 عاجل' },
 ]
+
+const allowedEmails = (import.meta.env.VITE_ALLOWED_EMAILS || 'you@example.com,admin@example.com')
+  .split(',')
+  .map((email: string) => email.trim().toLowerCase())
+  .filter(Boolean)
+
+function isAllowedEmail(email: string) {
+  return allowedEmails.includes(email.trim().toLowerCase())
+}
 
 const resourceMeta = [
   { key: 'profiles', label: 'الملفات الشخصية', path: '/profiles', description: 'حسابات المستخدمين وتفاصيل المتعلمين', explanation: 'هذا القسم يتيح لك إدارة بيانات الطلاب وأدائهم.' },
@@ -250,10 +259,19 @@ function TeacherDashboard() {
 function Shell() {
   const { setActiveTab } = useDashboardStore();
   const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     setActiveTab(location.pathname);
   }, [location, setActiveTab]);
+
+  const handleLogout = async () => {
+    const { error } = await supabaseClient.auth.signOut();
+
+    if (!error) {
+      navigate('/login', { replace: true });
+    }
+  }
 
   const navItems = [
     { label: 'لوحة التحكم', to: '/' },
@@ -271,6 +289,7 @@ function Shell() {
             </NavLink>
           ))}
         </nav>
+        <button className="logout-button" onClick={handleLogout} type="button">تسجيل الخروج</button>
       </aside>
 
       <main className="main-panel">
@@ -299,6 +318,146 @@ function Shell() {
   )
 }
 
+function LoginPage() {
+  const navigate = useNavigate();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data } = await supabaseClient.auth.getSession();
+
+      if (data.session) {
+        navigate('/', { replace: true });
+      }
+    };
+
+    checkUser();
+  }, [navigate]);
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError('');
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedEmail || !password.trim()) {
+      setError('يرجى إدخال البريد الإلكتروني وكلمة المرور.');
+      return;
+    }
+
+    if (!isAllowedEmail(normalizedEmail)) {
+      setError('هذا الحساب غير مسموح له بالدخول إلى لوحة الإدارة.');
+      return;
+    }
+
+    setLoading(true);
+
+    const { data, error: signInError } = await supabaseClient.auth.signInWithPassword({
+      email: normalizedEmail,
+      password,
+    });
+
+    if (signInError) {
+      setError(signInError.message);
+      setLoading(false);
+      return;
+    }
+
+    if (data.user) {
+      navigate('/', { replace: true });
+    }
+
+    setLoading(false);
+  }
+
+  return (
+    <div className="login-screen">
+      <div className="login-card">
+        <p className="eyebrow">إدارة التعليم</p>
+        <h1>تسجيل الدخول</h1>
+
+        <form onSubmit={handleSubmit} className="login-form">
+          <label>
+            البريد الإلكتروني
+            <input
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="you@example.com"
+              autoComplete="email"
+            />
+          </label>
+
+          <label>
+            كلمة المرور
+            <input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="••••••••"
+              autoComplete="current-password"
+            />
+          </label>
+
+          {error && <div className="login-error">{error}</div>}
+
+          <button className="primary-button login-button" type="submit" disabled={loading}>
+            {loading ? 'جاري تسجيل الدخول...' : 'دخول'}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function AppContent() {
+  const [isReady, setIsReady] = useState(false);
+  const [session, setSession] = useState<any>(null);
+
+  useEffect(() => {
+    let ignore = false;
+
+    const initializeSession = async () => {
+      const { data } = await supabaseClient.auth.getSession();
+
+      if (!ignore) {
+        setSession(data.session);
+        setIsReady(true);
+      }
+    };
+
+    const { data: authListener } = supabaseClient.auth.onAuthStateChange((_event, currentSession) => {
+      setSession(currentSession);
+    });
+
+    initializeSession();
+
+    return () => {
+      ignore = true;
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
+
+  if (!isReady) {
+    return (
+      <div className="login-screen">
+        <div className="login-card loading-card">
+          <p>جاري التحميل...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <LoginPage />;
+  }
+
+  return <Shell />;
+}
+
 function App() {
   return (
     <BrowserRouter>
@@ -313,7 +472,7 @@ function App() {
             warnWhenUnsavedChanges: true,
           }}
         >
-          <Shell />
+          <AppContent />
           <RefineKbar />
           <UnsavedChangesNotifier />
           <DocumentTitleHandler />
