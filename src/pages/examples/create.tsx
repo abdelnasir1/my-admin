@@ -105,7 +105,7 @@ export const CreateExamplePage = () => {
 
     const fileExt = videoFile.name.split('.').pop();
     const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
-    const filePath = `videos/${fileName}`;
+    const filePath = `/${fileName}`;
 
     const { error: uploadError } = await supabaseClient.storage
       .from('videos')
