@@ -16,17 +16,18 @@ COPY . .
 RUN npm run build
 
 # ---------- Production stage ----------
-FROM nginx:1.27-alpine
+FROM node:20-alpine
 
-# Remove default nginx config
-RUN rm /etc/nginx/conf.d/default.conf
+WORKDIR /app
 
-# Copy custom nginx config
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Lightweight static server with SPA support
+RUN npm install -g serve
 
-# Copy built files
-COPY --from=builder /app/dist /usr/share/nginx/html
+# Copy only the built files
+COPY --from=builder /app/dist ./dist
 
-EXPOSE 80
+# The port the container will listen on
+EXPOSE 3000
 
-CMD ["nginx", "-g", "daemon off;"]
+# -s = SPA mode (all routes → index.html)
+CMD ["serve", "-s", "dist", "-l", "3000"]
