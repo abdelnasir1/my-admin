@@ -55,7 +55,7 @@ const CategoryNode = ({ data }: { data: any }) => {
           display: 'inline-block'
         }}
       >
-        + إضافة ابن
+        + إضافة فرع
       </Link>
 
       <Handle type="source" position={Position.Bottom} style={{ background: '#6366f1' }} />
