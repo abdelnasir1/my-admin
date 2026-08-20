@@ -276,6 +276,16 @@ button {
   min-width: 220px;
 }
 
+.payment-reason-input {
+  width: 100%;
+  min-width: 220px;
+  padding: 8px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 7px;
+  color: #e2e8f0;
+  background: rgba(15, 23, 42, 0.75);
+}
+
 .table-action-button {
   border: 1px solid rgba(45, 212, 191, 0.35);
   border-radius: 7px;
@@ -303,6 +313,12 @@ button {
   max-width: 240px;
   color: #fda4af;
   font-size: 0.75rem;
+}
+
+.receipt-link {
+  color: #99f6e4;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .status-badge {

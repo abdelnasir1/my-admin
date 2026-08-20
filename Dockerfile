@@ -6,12 +6,10 @@ WORKDIR /app
 ARG VITE_SUPABASE_URL
 ARG VITE_SUPABASE_PUBLISHABLE_KEY
 ARG VITE_ALLOWED_EMAILS
-ARG VITE_VERIFICATION_URL
 
 ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
 ENV VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY
 ENV VITE_ALLOWED_EMAILS=$VITE_ALLOWED_EMAILS
-ENV VITE_VERIFICATION_URL=$VITE_VERIFICATION_URL
 
 # Copy package files
 COPY package.json package-lock.json ./
@@ -30,14 +28,9 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Lightweight static server with SPA support
-RUN npm install -g serve
-
-# Copy only the built files
 COPY --from=builder /app/dist ./dist
+COPY server.mjs ./server.mjs
 
-# The port the container will listen on
 EXPOSE 3000
 
-# -s = SPA mode (all routes → index.html)
-CMD ["serve", "-s", "dist", "-l", "3000"]
+CMD ["node", "server.mjs"]

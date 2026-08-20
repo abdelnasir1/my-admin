@@ -20,10 +20,11 @@ type TableRow = Record<string, any>
 type PaymentRow = TableRow & {
   id: string
   receipt_url?: string | null
+  reason?: string | null
   status?: string | null
 }
 
-const verificationUrl = import.meta.env.VITE_VERIFICATION_URL || 'https://verify.maazplatform.tech/verify/storage'
+const verificationUrl = '/verify/storage'
 
 const dashboardStats = [
   { label: 'الملفات الشخصية', value: '24', change: '+4 هذا الأسبوع' },
@@ -184,8 +185,13 @@ function PaymentsPage() {
   const { rows, loading, error } = useResourceRows('payments')
   const [actionState, setActionState] = useState<Record<string, 'verifying' | 'retrying'>>({})
   const [actionError, setActionError] = useState<Record<string, string>>({})
+  const [reasonValues, setReasonValues] = useState<Record<string, string>>({})
 
   const payments = rows as PaymentRow[]
+  useEffect(() => {
+    setReasonValues(Object.fromEntries(payments.map((payment) => [payment.id, payment.reason ?? ''])))
+  }, [payments])
+
   const columns = useMemo(() => {
     const preferredColumns = ['id', 'user_id', 'receipt_url', 'status', 'verified_at', 'created_at']
     const availableColumns = new Set<string>()
@@ -203,7 +209,11 @@ function PaymentsPage() {
       if (action === 'verifying') {
         const { error: updateError } = await supabaseClient
           .from('payments')
-          .update({ status: 'verified', verified_at: new Date().toISOString() })
+          .update({
+            status: 'verified',
+            verified_at: new Date().toISOString(),
+            reason: reasonValues[payment.id] || null,
+          })
           .eq('id', payment.id)
 
         if (updateError) throw updateError
@@ -277,10 +287,28 @@ function PaymentsPage() {
                 return (
                   <tr key={payment.id}>
                     {columns.map((column) => (
-                      <td key={`${payment.id}-${column}`}>{formatValue(payment[column])}</td>
+                      <td key={`${payment.id}-${column}`}>
+                        {column === 'receipt_url' && payment.receipt_url ? (
+                          <a href={payment.receipt_url} target="_blank" rel="noreferrer" className="receipt-link">
+                            View receipt
+                          </a>
+                        ) : (
+                          formatValue(payment[column])
+                        )}
+                      </td>
                     ))}
                     <td>
                       <div className="payment-actions">
+                        <input
+                          className="payment-reason-input"
+                          type="text"
+                          value={reasonValues[payment.id] ?? ''}
+                          placeholder="Reason"
+                          onChange={(event) => setReasonValues((current) => ({
+                            ...current,
+                            [payment.id]: event.target.value,
+                          }))}
+                        />
                         <button
                           className="table-action-button"
                           type="button"
