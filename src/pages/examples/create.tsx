@@ -378,8 +378,8 @@ export const CreateExamplePage = () => {
             نوع الخطة
             <select value={planType} onChange={(event) => setPlanType(event.target.value)}>
               <option value="basicbook">أساسية</option>
-              <option value="firstbook_advance">متخصصة كتاب أول</option>
-              <option value="secondbook_advance">متخصصة كتاب ثاني</option>
+              <option value="firstbookAdvance">متخصصة كتاب أول</option>
+              <option value="secondbookAdvance">متخصصة كتاب ثاني</option>
             </select>
           </label>
 
