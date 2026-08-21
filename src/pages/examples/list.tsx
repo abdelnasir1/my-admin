@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router';
 import { supabaseClient } from '../../providers/supabase-client';
 import { useDashboardStore } from '../../store/dashboardStore';
 
@@ -30,6 +29,18 @@ export const ExampleList = () => {
   const [rows, setRows] = useState<TableRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const deleteExample = async (id: string) => {
+    if (!window.confirm('هل تريد حذف هذا المثال؟')) return;
+
+    const { error: deleteError } = await supabaseClient.from('examples').delete().eq('id', id);
+    if (deleteError) {
+      setError(deleteError.message);
+      return;
+    }
+
+    setRows((currentRows) => currentRows.filter((row) => row.id !== id));
+  };
 
   // Fetch Level 3 Categories
   useEffect(() => {
@@ -93,7 +104,6 @@ export const ExampleList = () => {
           <p className="eyebrow">قاعدة البيانات</p>
           <h1>الأمثلة</h1>
         </div>
-        <Link to="/examples/create" className="primary-button button-link">إضافة مثال</Link>
       </header>
 
       <div className="panel description-panel">
@@ -139,11 +149,12 @@ export const ExampleList = () => {
                 {columns.map((column) => (
                   <th key={column}>{column}</th>
                 ))}
+                <th>الإجراء</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row, index) => (
-                <tr key={`examples-${index}`}>
+                <tr key={`examples-${row.id ?? index}`}>
                   {columns.map((column) => (
                     <td key={`examples-${column}-${index}`}>
                       {column === 'question_image_url' || column === 'thumbnail' ? (
@@ -153,6 +164,11 @@ export const ExampleList = () => {
                       )}
                     </td>
                   ))}
+                  <td>
+                    <button type="button" className="remove-option-btn" onClick={() => void deleteExample(row.id)}>
+                      حذف
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>

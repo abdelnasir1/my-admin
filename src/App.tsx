@@ -133,9 +133,7 @@ function DatabaseTablePage({
           <p className="eyebrow">قاعدة البيانات</p>
           <h1>{title}</h1>
         </div>
-        {resource === 'examples' ? (
-          <Link to="/examples/create" className="primary-button button-link">إضافة مثال</Link>
-        ) : (
+        {resource !== 'examples' && (
           <button className="primary-button">إضافة سجل</button>
         )}
       </header>
@@ -173,6 +171,86 @@ function DatabaseTablePage({
                   ))}
                 </tr>
               ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+type DatabaseVideo = {
+  id: string
+  video_url: string
+  is_premium?: boolean | null
+  plan_type?: string | null
+}
+
+function VideosPage() {
+  const [videos, setVideos] = useState<DatabaseVideo[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function loadVideos() {
+      setLoading(true)
+      setError(null)
+
+      const { data, error: listError } = await supabaseClient
+        .from('videos')
+        .select('id, video_url, is_premium, plan_type')
+        .order('id', { ascending: false })
+        .limit(100)
+
+      if (listError) {
+        setError(listError.message)
+      } else {
+        setVideos((data ?? []) as DatabaseVideo[])
+      }
+
+      setLoading(false)
+    }
+
+    loadVideos()
+  }, [])
+
+  return (
+    <div className="teacher-page">
+      <header className="page-header">
+        <div>
+          <p className="eyebrow">التخزين</p>
+          <h1>الفيديوهات المرفوعة</h1>
+        </div>
+        <Link to="/examples/create" className="primary-button button-link">رفع فيديو</Link>
+      </header>
+
+      <div className="panel description-panel">
+        <h2>محتويات بوكيه الفيديوهات</h2>
+        <p>{videos.length} فيديو مرفوع</p>
+      </div>
+
+      {loading ? (
+        <div className="empty-state"><p>جاري تحميل الفيديوهات...</p></div>
+      ) : error ? (
+        <div className="empty-state"><h2>مشكلة في الاتصال</h2><p>{error}</p></div>
+      ) : videos.length === 0 ? (
+        <div className="empty-state"><h2>لا توجد فيديوهات</h2><p>ارفع فيديو جديداً ليظهر هنا.</p></div>
+      ) : (
+        <div className="table-card large-table">
+          <table>
+            <thead>
+              <tr><th>الرابط</th><th>نوع الوصول</th><th>نوع الخطة</th></tr>
+            </thead>
+            <tbody>
+              {videos.map((video) => {
+                return (
+                  <tr key={video.id}>
+                    <td><a className="receipt-link" href={video.video_url} target="_blank" rel="noreferrer">فتح الفيديو</a></td>
+                    <td>{video.is_premium ? 'مدفوع' : 'مجاني'}</td>
+                    <td>{video.plan_type ?? '—'}</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -442,6 +520,7 @@ function Shell() {
   const navItems = [
     { label: 'لوحة التحكم', to: '/' },
     ...resourceMeta.map((item) => ({ label: item.label, to: item.path })),
+    { label: 'إنشاء مثال', to: '/examples/create' },
   ]
 
   return (
@@ -450,7 +529,7 @@ function Shell() {
         <div className="brand">إدارة التعليم</div>
         <nav className="sidebar-nav">
           {navItems.map((item) => (
-            <NavLink key={item.to} to={item.to} className={({ isActive }) => (isActive ? 'active' : '')}>
+            <NavLink key={item.to} to={item.to} end={item.to === '/examples'} className={({ isActive }) => (isActive ? 'active' : '')}>
               {item.label}
             </NavLink>
           ))}
@@ -472,6 +551,8 @@ function Shell() {
                   <CategoryList />
                 ) : item.key === 'payments' ? (
                   <PaymentsPage />
+                ) : item.key === 'videos' ? (
+                  <VideosPage />
                 ) : (
                   <DatabaseTablePage resource={item.key} title={item.label} description={item.description} explanation={item.explanation} />
                 )

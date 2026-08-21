@@ -7,6 +7,14 @@ interface Viewport {
   zoom: number;
 }
 
+export interface ExampleDraft {
+  selectedCategoryId: string;
+  videoPremium: boolean;
+  planType: string;
+  exampleName: string;
+  dynamicOptions: { id: string; text: string; isCorrect: boolean }[];
+}
+
 interface DashboardState {
   // Example tab state
   exampleCategoryId: string;
@@ -19,7 +27,19 @@ interface DashboardState {
   // General UI state
   activeTab: string;
   setActiveTab: (tab: string) => void;
+
+  exampleDraft: ExampleDraft;
+  setExampleDraft: (draft: Partial<ExampleDraft>) => void;
+  clearExampleDraft: () => void;
 }
+
+const emptyExampleDraft: ExampleDraft = {
+  selectedCategoryId: '',
+  videoPremium: true,
+  planType: 'basicbook',
+  exampleName: '',
+  dynamicOptions: [{ id: 'initial-option', text: '', isCorrect: false }],
+};
 
 export const useDashboardStore = create<DashboardState>()(
   persist(
@@ -32,6 +52,12 @@ export const useDashboardStore = create<DashboardState>()(
 
       activeTab: "/",
       setActiveTab: (tab: string) => set({ activeTab: tab }),
+
+      exampleDraft: emptyExampleDraft,
+      setExampleDraft: (draft) => set((state) => ({
+        exampleDraft: { ...state.exampleDraft, ...draft },
+      })),
+      clearExampleDraft: () => set({ exampleDraft: emptyExampleDraft }),
     }),
     {
       name: 'dashboard-storage',

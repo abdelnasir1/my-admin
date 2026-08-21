@@ -58,6 +58,24 @@ const CategoryNode = ({ data }: { data: any }) => {
         + إضافة فرع
       </Link>
 
+      <button
+        type="button"
+        onClick={() => data.onDelete(data.id)}
+        style={{
+          marginInlineStart: '8px',
+          fontSize: '11px',
+          background: '#ef4444',
+          color: '#fff',
+          border: 0,
+          padding: '6px 12px',
+          borderRadius: '6px',
+          cursor: 'pointer',
+          fontWeight: 'bold',
+        }}
+      >
+        حذف
+      </button>
+
       <Handle type="source" position={Position.Bottom} style={{ background: '#6366f1' }} />
     </div>
   );
@@ -104,6 +122,19 @@ export const CategoryList = () => {
   const [isError, setIsError] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const deleteCategory = async (id: string) => {
+    if (!window.confirm('هل تريد حذف هذا القسم؟')) return;
+
+    const { error: deleteError } = await supabaseClient.from('categories').delete().eq('id', id);
+    if (deleteError) {
+      setIsError(true);
+      setError(deleteError.message);
+      return;
+    }
+
+    setAllCategories((currentCategories) => currentCategories.filter((category) => category.id !== id));
+  };
+
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
@@ -138,6 +169,7 @@ export const CategoryList = () => {
             level: cat.level,
             id: cat.id,
             isRoot: Number(cat.level) === 1
+            ,onDelete: deleteCategory
           },
           position: {
               x: indexInLevel * 250,

@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { supabaseClient } from '../../providers/supabase-client';
+import { useDashboardStore } from '../../store/dashboardStore';
 
 interface OptionItem {
   id: string;
@@ -8,32 +9,129 @@ interface OptionItem {
   isCorrect: boolean;
 }
 
+type FilePickerOptions = {
+  id: string;
+  accept: string;
+};
+
+type PickerWindow = Window & typeof globalThis & {
+  showOpenFilePicker: (options: {
+    id: string;
+    multiple: boolean;
+    startIn?: FileSystemDirectoryHandle;
+    types: { description: string; accept: Record<string, string[]> }[];
+  }) => Promise<{ getFile: () => Promise<File> }[]>;
+  showDirectoryPicker: (options: { id: string; mode: 'read' }) => Promise<FileSystemDirectoryHandle>;
+};
+
+type PermissionDirectoryHandle = FileSystemDirectoryHandle & {
+  queryPermission: (options: { mode: 'read' }) => Promise<PermissionState>;
+  requestPermission: (options: { mode: 'read' }) => Promise<PermissionState>;
+};
+
+const pickerDatabaseName = 'example-file-picker-database';
+const pickerStoreName = 'directories';
+const draftStoreName = 'draft-files';
+
+const openPickerDatabase = () => new Promise<IDBDatabase>((resolve, reject) => {
+  const request = indexedDB.open(pickerDatabaseName, 2);
+  request.onupgradeneeded = () => {
+    if (!request.result.objectStoreNames.contains(pickerStoreName)) {
+      request.result.createObjectStore(pickerStoreName);
+    }
+    if (!request.result.objectStoreNames.contains(draftStoreName)) {
+      request.result.createObjectStore(draftStoreName);
+    }
+  };
+  request.onsuccess = () => resolve(request.result);
+  request.onerror = () => reject(request.error);
+});
+
+const loadDirectory = async (id: string) => {
+  const database = await openPickerDatabase();
+  return new Promise<FileSystemDirectoryHandle | undefined>((resolve, reject) => {
+    const request = database.transaction(pickerStoreName, 'readonly').objectStore(pickerStoreName).get(id);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+};
+
+const saveDraftFile = async (key: string, file: File | null) => {
+  const database = await openPickerDatabase();
+  return new Promise<void>((resolve, reject) => {
+    const store = database.transaction(draftStoreName, 'readwrite').objectStore(draftStoreName);
+    const request = file ? store.put(file, key) : store.delete(key);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+};
+
+const loadDraftFile = async (key: string) => {
+  const database = await openPickerDatabase();
+  return new Promise<File | undefined>((resolve, reject) => {
+    const request = database.transaction(draftStoreName, 'readonly').objectStore(draftStoreName).get(key);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+};
+
+const saveDirectory = async (id: string, directory: FileSystemDirectoryHandle) => {
+  const database = await openPickerDatabase();
+  return new Promise<void>((resolve, reject) => {
+    const request = database.transaction(pickerStoreName, 'readwrite').objectStore(pickerStoreName).put(directory, id);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+};
+
+const hasDirectoryPermission = async (directory: FileSystemDirectoryHandle) => {
+  const permissionDirectory = directory as PermissionDirectoryHandle;
+  const permission = await permissionDirectory.queryPermission({ mode: 'read' });
+  if (permission === 'granted') return true;
+  if (permission === 'prompt') {
+    return (await permissionDirectory.requestPermission({ mode: 'read' })) === 'granted';
+  }
+  return false;
+};
+
+const openRememberedFilePicker = async ({ id, accept }: FilePickerOptions) => {
+  if (!('showOpenFilePicker' in window)) return null;
+
+  const pickerWindow = window as PickerWindow;
+  let directory = await loadDirectory(id);
+
+  if (!directory || !(await hasDirectoryPermission(directory))) {
+    directory = await pickerWindow.showDirectoryPicker({ id, mode: 'read' });
+    await saveDirectory(id, directory);
+  }
+
+  const [fileHandle] = await pickerWindow.showOpenFilePicker({
+    id,
+    multiple: false,
+    startIn: directory,
+    types: [{ description: accept, accept: { [accept]: [] } }],
+  });
+
+  return fileHandle ? fileHandle.getFile() : null;
+};
+
 export const CreateExamplePage = () => {
+  const { exampleDraft, setExampleDraft, clearExampleDraft } = useDashboardStore();
   const [categories, setCategories] = useState<any[]>([]);
-  const [videos, setVideos] = useState<any[]>([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState(exampleDraft.selectedCategoryId);
 
-  const [categoryName, setCategoryName] = useState('');
-  const [categoryLevel, setCategoryLevel] = useState('1');
-  const [parentCategoryId, setParentCategoryId] = useState('');
-  const [selectedCategoryId, setSelectedCategoryId] = useState('');
-
-  const [videoUrl, setVideoUrl] = useState('');
-  const [videoPremium, setVideoPremium] = useState(true);
-  const [planType, setPlanType] = useState('basicbook');
-  const [selectedVideoId, setSelectedVideoId] = useState('');
+  const [videoPremium, setVideoPremium] = useState(exampleDraft.videoPremium);
+  const [planType, setPlanType] = useState(exampleDraft.planType);
   const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [uploadingVideo, setUploadingVideo] = useState(false);
-  const [videoUploadMessage, setVideoUploadMessage] = useState('');
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const questionImageInputRef = useRef<HTMLInputElement>(null);
+  const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
-  const [exampleName, setExampleName] = useState('');
-  const [questionImageUrl, setQuestionImageUrl] = useState('');
-  const [thumbnailUrl, setThumbnailUrl] = useState('');
-  const [uploadingQuestion, setUploadingQuestion] = useState(false);
-  const [uploadingThumbnail, setUploadingThumbnail] = useState(false);
+  const [exampleName, setExampleName] = useState(exampleDraft.exampleName);
+  const [questionImageFile, setQuestionImageFile] = useState<File | null>(null);
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
 
-  const [dynamicOptions, setDynamicOptions] = useState<OptionItem[]>([
-    { id: Math.random().toString(), text: '', isCorrect: false }
-  ]);
+  const [dynamicOptions, setDynamicOptions] = useState<OptionItem[]>(exampleDraft.dynamicOptions);
 
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -41,13 +139,44 @@ export const CreateExamplePage = () => {
   // Fetch Resources (Direct)
   useEffect(() => {
     async function load() {
-        const { data: cats } = await supabaseClient.from('categories').select('*');
+        const { data: cats } = await supabaseClient
+          .from('categories')
+          .select('*')
+          .eq('level', 3);
         if (cats) setCategories(cats);
-
-        const { data: vids } = await supabaseClient.from('videos').select('*');
-        if (vids) setVideos(vids);
     }
     load();
+  }, []);
+
+  useEffect(() => {
+    void Promise.all([loadDraftFile('video'), loadDraftFile('question-image'), loadDraftFile('thumbnail')])
+      .then(([video, questionImage, thumbnail]) => {
+        if (video) setVideoFile(video);
+        if (questionImage) setQuestionImageFile(questionImage);
+        if (thumbnail) setThumbnailFile(thumbnail);
+      });
+  }, []);
+
+  useEffect(() => {
+    setExampleDraft({ selectedCategoryId, videoPremium, planType, exampleName, dynamicOptions });
+  }, [selectedCategoryId, videoPremium, planType, exampleName, dynamicOptions, setExampleDraft]);
+
+  useEffect(() => {
+    const restoreDraft = (draft: typeof exampleDraft) => {
+      setSelectedCategoryId(draft.selectedCategoryId);
+      setVideoPremium(draft.videoPremium);
+      setPlanType(draft.planType);
+      setExampleName(draft.exampleName);
+      setDynamicOptions(draft.dynamicOptions);
+    };
+
+    if (useDashboardStore.persist.hasHydrated()) {
+      restoreDraft(useDashboardStore.getState().exampleDraft);
+    }
+
+    return useDashboardStore.persist.onFinishHydration((state) => {
+      restoreDraft(state.exampleDraft);
+    });
   }, []);
 
   const addOption = () => {
@@ -66,46 +195,14 @@ export const CreateExamplePage = () => {
     setDynamicOptions(dynamicOptions.map(opt => opt.id === id ? { ...opt, isCorrect } : opt));
   };
 
-  const createCategory = async () => {
-    if (!categoryName.trim()) {
-      setMessage('اسم القسم مطلوب.');
-      return;
-    }
-
-    const { data, error } = await supabaseClient
-      .from('categories')
-      .insert([
-        {
-          name: categoryName.trim(),
-          level: Number(categoryLevel),
-          parent_id: parentCategoryId || null,
-        },
-      ])
-      .select()
-      .single();
-
-    if (error) {
-      setMessage(error.message);
-      return;
-    }
-
-    setSelectedCategoryId(data.id);
-    setMessage('تم إنشاء القسم. الآن أضف أو اختر الفيديو قبل إنشاء المثال.');
-  };
-
-  const uploadVideoToBucket = async () => {
+  const uploadVideo = async () => {
     if (!videoFile) {
-      setMessage('يرجى اختيار ملف فيديو أولاً.');
-      return;
+      throw new Error('يرجى اختيار ملف فيديو أولاً.');
     }
 
-    setUploadingVideo(true);
-    setVideoUploadMessage('');
-    setMessage('');
-
-    const fileExt = videoFile.name.split('.').pop();
-    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
-    const filePath = `/${fileName}`;
+    const originalName = videoFile.name.replace(/[\\/]/g, '_').trim();
+    const fileName = `${Date.now()}-${originalName}`;
+    const filePath = fileName;
 
     const { error: uploadError } = await supabaseClient.storage
       .from('videos')
@@ -116,34 +213,18 @@ export const CreateExamplePage = () => {
       });
 
     if (uploadError) {
-      setMessage(`فشل رفع الفيديو: ${uploadError.message}`);
-      setUploadingVideo(false);
-      return;
+      throw new Error(`فشل رفع الفيديو: ${uploadError.message}`);
     }
 
     const { data: { publicUrl } } = supabaseClient.storage
       .from('videos')
       .getPublicUrl(filePath);
 
-    setVideoUrl(publicUrl);
-    setUploadingVideo(false);
-    setVideoUploadMessage('تم رفع الفيديو إلى البوكيت بنجاح.');
-    setMessage('تم الحصول على رابط الفيديو. الآن يمكن حفظ سجل الفيديو.');
-  };
-
-  const createVideo = async () => {
-    const finalVideoUrl = videoUrl.trim();
-
-    if (!finalVideoUrl) {
-      setMessage('يرجى رفع الفيديو أولاً أو إدخال رابط فيديو.');
-      return;
-    }
-
-    const { data, error } = await supabaseClient
+    const { data: videoRecord, error: recordError } = await supabaseClient
       .from('videos')
       .insert([
         {
-          video_url: finalVideoUrl,
+          video_url: publicUrl,
           is_premium: videoPremium,
           plan_type: planType,
         },
@@ -151,88 +232,130 @@ export const CreateExamplePage = () => {
       .select()
       .single();
 
-    if (error) {
-      setMessage(error.message);
+    if (recordError) {
+      await supabaseClient.storage.from('videos').remove([filePath]);
+      throw new Error(`تم رفع الملف لكن فشل حفظ سجل الفيديو: ${recordError.message}`);
+    }
+
+    return videoRecord.id as string;
+  };
+
+  const chooseVideo = async () => {
+    if (!('showOpenFilePicker' in window)) {
+      videoInputRef.current?.click();
       return;
     }
 
-    setSelectedVideoId(data.id);
-    setMessage('تم إنشاء الفيديو بنجاح. يمكنك الآن إنشاء سجل المثال.');
+    try {
+      const file = await openRememberedFilePicker({ id: 'example-video', accept: 'video/*' });
+      setVideoFile(file);
+      await saveDraftFile('video', file);
+    } catch (error) {
+      if ((error as DOMException).name !== 'AbortError') setMessage('تعذر فتح نافذة اختيار الفيديو.');
+    }
+  };
+
+  const uploadQuestionImage = async (file: File) => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Math.random()}.${fileExt}`;
+    const filePath = `${fileName}`;
+
+    const { error: uploadError } = await supabaseClient.storage
+      .from('examplepictures')
+      .upload(filePath, file);
+
+    if (uploadError) {
+      throw new Error(`فشل رفع صورة السؤال: ${uploadError.message}`);
+    }
+
+    const { data: { publicUrl } } = supabaseClient.storage
+      .from('examplepictures')
+      .getPublicUrl(filePath);
+
+    return publicUrl;
   };
 
   const handleQuestionImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    setQuestionImageFile(file);
+    await saveDraftFile('question-image', file);
+  };
 
-    setUploadingQuestion(true);
-    setMessage('');
+  const chooseQuestionImage = async () => {
+    if (!('showOpenFilePicker' in window)) {
+      questionImageInputRef.current?.click();
+      return;
+    }
 
+    try {
+      const file = await openRememberedFilePicker({ id: 'example-question-image', accept: 'image/*' });
+      if (file) {
+        setQuestionImageFile(file);
+        await saveDraftFile('question-image', file);
+      }
+    } catch (error) {
+      if ((error as DOMException).name !== 'AbortError') setMessage('تعذر فتح نافذة اختيار صورة السؤال.');
+    }
+  };
+
+  const uploadThumbnail = async (file: File) => {
     const fileExt = file.name.split('.').pop();
     const fileName = `${Math.random()}.${fileExt}`;
     const filePath = `${fileName}`;
 
     const { error: uploadError } = await supabaseClient.storage
-      .from('examplepictures')
+      .from('thumbnails')
       .upload(filePath, file);
 
     if (uploadError) {
-      setMessage(`فشل رفع صورة السؤال: ${uploadError.message}`);
-      setUploadingQuestion(false);
-      return;
+      throw new Error(`فشل رفع الصورة المصغرة: ${uploadError.message}`);
     }
 
     const { data: { publicUrl } } = supabaseClient.storage
-      .from('examplepictures')
+      .from('thumbnails')
       .getPublicUrl(filePath);
 
-    setQuestionImageUrl(publicUrl);
-    setUploadingQuestion(false);
-    setMessage('تم رفع صورة السؤال بنجاح.');
+    return publicUrl;
   };
 
   const handleThumbnailUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    setThumbnailFile(file);
+    await saveDraftFile('thumbnail', file);
+  };
 
-    setUploadingThumbnail(true);
-    setMessage('');
-
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Math.random()}.${fileExt}`;
-    const filePath = `${fileName}`;
-
-    const { error: uploadError } = await supabaseClient.storage
-      .from('thumbnails')
-      .upload(filePath, file);
-
-    if (uploadError) {
-      setMessage(`فشل رفع الصورة المصغرة: ${uploadError.message}`);
-      setUploadingThumbnail(false);
+  const chooseThumbnail = async () => {
+    if (!('showOpenFilePicker' in window)) {
+      thumbnailInputRef.current?.click();
       return;
     }
 
-    const { data: { publicUrl } } = supabaseClient.storage
-      .from('thumbnails')
-      .getPublicUrl(filePath);
-
-    setThumbnailUrl(publicUrl);
-    setUploadingThumbnail(false);
-    setMessage('تم رفع الصورة المصغرة بنجاح.');
+    try {
+      const file = await openRememberedFilePicker({ id: 'example-thumbnail-image', accept: 'image/*' });
+      if (file) {
+        setThumbnailFile(file);
+        await saveDraftFile('thumbnail', file);
+      }
+    } catch (error) {
+      if ((error as DOMException).name !== 'AbortError') setMessage('تعذر فتح نافذة اختيار الصورة المصغرة.');
+    }
   };
 
   const createExample = async () => {
     if (!selectedCategoryId) {
-      setMessage('يرجى إنشاء أو اختيار قسم أولاً.');
+      setMessage('يرجى اختيار القسم أولاً.');
       return;
     }
 
-    if (!selectedVideoId) {
-      setMessage('يرجى إنشاء أو اختيار فيديو أولاً.');
+    if (!videoFile || !questionImageFile) {
+      setMessage('يرجى اختيار الفيديو وصورة السؤال أولاً.');
       return;
     }
 
-    if (!exampleName.trim() || !questionImageUrl.trim()) {
-      setMessage('اسم المثال وصورة السؤال مطلوبة.');
+    if (!exampleName.trim()) {
+      setMessage('اسم المثال مطلوب.');
       return;
     }
 
@@ -250,33 +373,48 @@ export const CreateExamplePage = () => {
     setSaving(true);
     setMessage('');
 
-    const { data, error } = await supabaseClient
-      .from('examples')
-      .insert([
-        {
+    try {
+      setMessage('جاري رفع الفيديو...');
+      const videoId = await uploadVideo();
+      setMessage('جاري رفع الصور...');
+      const questionImageUrl = await uploadQuestionImage(questionImageFile);
+      const thumbnailUrl = thumbnailFile ? await uploadThumbnail(thumbnailFile) : null;
+
+      const { data, error } = await supabaseClient
+        .from('examples')
+        .insert([{
           parent_category: selectedCategoryId,
           name: exampleName.trim(),
-          question_image_url: questionImageUrl.trim(),
-          video_id: selectedVideoId,
+          question_image_url: questionImageUrl,
+          video_id: videoId,
           options: optionsPayload,
-          thumbnail: thumbnailUrl || null,
-        },
-      ])
-      .select()
-      .single();
+          thumbnail: thumbnailUrl,
+        }])
+        .select()
+        .single();
 
-    setSaving(false);
+      if (error) throw new Error(error.message);
 
-    if (error) {
-      setMessage(error.message);
-      return;
+      setMessage(`تم إنشاء المثال بنجاح: ${data?.name ?? 'سجل جديد'}`);
+      setSelectedCategoryId('');
+      setExampleName('');
+      setVideoPremium(true);
+      setPlanType('basicbook');
+      setVideoFile(null);
+      setQuestionImageFile(null);
+      setThumbnailFile(null);
+      setDynamicOptions([{ id: Math.random().toString(), text: '', isCorrect: false }]);
+      clearExampleDraft();
+      await Promise.all([
+        saveDraftFile('video', null),
+        saveDraftFile('question-image', null),
+        saveDraftFile('thumbnail', null),
+      ]);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'فشل إنشاء المثال.');
+    } finally {
+      setSaving(false);
     }
-
-    setMessage(`تم إنشاء المثال بنجاح: ${data?.name ?? 'سجل جديد'}`);
-    setExampleName('');
-    setQuestionImageUrl('');
-    setThumbnailUrl('');
-    setDynamicOptions([{ id: Math.random().toString(), text: '', isCorrect: false }]);
   };
 
   return (
@@ -289,81 +427,20 @@ export const CreateExamplePage = () => {
         <Link to="/examples" className="ghost-button button-link">العودة للجدول</Link>
       </header>
 
-      <div className="creation-flow">
-        <section className="panel create-panel">
-          <h2>1. اختيار أو إنشاء قسم</h2>
+      <form className="panel create-panel example-form" onSubmit={(event) => { event.preventDefault(); void createExample(); }}>
+          <h2>بيانات المثال</h2>
 
           <label>
-            مستوى القسم
-            <input type="number" min="1" value={categoryLevel} onChange={(event) => setCategoryLevel(event.target.value)} />
-          </label>
-
-          <label>
-            القسم الأب
-            <select value={parentCategoryId} onChange={(event) => setParentCategoryId(event.target.value)}>
-              <option value="">لا يوجد أب</option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>{category.name} (مستوى {category.level})</option>
-              ))}
+            القسم
+            <select value={selectedCategoryId} onChange={(event) => setSelectedCategoryId(event.target.value)} required>
+              <option value="">اختر القسم</option>
+              {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
             </select>
           </label>
 
           <label>
-            اسم القسم الجديد
-            <input value={categoryName} onChange={(event) => setCategoryName(event.target.value)} placeholder="مثال: أساسيات الهندسة" />
-          </label>
-
-          <button className="primary-button" onClick={createCategory}>
-            حفظ القسم
-          </button>
-
-          <label>
-            معرف القسم المختار
-            <input value={selectedCategoryId} readOnly placeholder="سيتم نسخ معرف القسم هنا" />
-          </label>
-
-          <div style={{ marginTop: '10px' }}>
-            <span>أو اختر موجود: </span>
-            <select value={selectedCategoryId} onChange={(e) => setSelectedCategoryId(e.target.value)}>
-                <option value="">اختر قسماً</option>
-                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
-        </section>
-
-        <section className="panel create-panel">
-          <h2>2. اختيار أو إنشاء فيديو</h2>
-
-          <label>
-            ملف الفيديو
-            <input
-              type="file"
-              accept="video/*"
-              onChange={(event) => {
-                const file = event.target.files?.[0] ?? null;
-                setVideoFile(file);
-                if (!file) {
-                  setVideoUrl('');
-                }
-              }}
-            />
-          </label>
-
-          <button className="primary-button" onClick={uploadVideoToBucket} disabled={uploadingVideo || !videoFile}>
-            {uploadingVideo ? 'جاري رفع الفيديو...' : 'رفع الفيديو إلى البوكيت'}
-          </button>
-
-          {videoUploadMessage && <div className="form-message" style={{ marginTop: '12px' }}>{videoUploadMessage}</div>}
-
-          {videoUrl && (
-            <div style={{ marginTop: '12px', color: '#7dd3fc', fontSize: '0.8rem', wordBreak: 'break-all' }}>
-              {videoUrl}
-            </div>
-          )}
-
-          <label>
-            رابط الفيديو (بديل)
-            <input value={videoUrl} onChange={(event) => setVideoUrl(event.target.value)} placeholder="https://..." />
+            اسم المثال
+            <input value={exampleName} onChange={(event) => setExampleName(event.target.value)} placeholder="مثال: مراجعة الضرب" />
           </label>
 
           <label>
@@ -378,49 +455,43 @@ export const CreateExamplePage = () => {
             نوع الخطة
             <select value={planType} onChange={(event) => setPlanType(event.target.value)}>
               <option value="basicbook">أساسية</option>
-              <option value="firstbookAdvance">متخصصة كتاب أول</option>
-              <option value="secondbookAdvance">متخصصة كتاب ثاني</option>
+              <option value="firstbook_advance">متخصصة كتاب أول</option>
+              <option value="secondbook_advance">متخصصة كتاب ثاني</option>
             </select>
-          </label>
-
-          <button className="primary-button" onClick={createVideo}>
-            حفظ الفيديو في قاعدة البيانات
-          </button>
-
-          <label>
-            معرف الفيديو المختار
-            <input value={selectedVideoId} readOnly placeholder="سيتم نسخ معرف الفيديو هنا" />
-          </label>
-
-          <div style={{ marginTop: '10px' }}>
-            <span>أو اختر موجود: </span>
-            <select value={selectedVideoId} onChange={(e) => setSelectedVideoId(e.target.value)}>
-                <option value="">اختر فيديو</option>
-                {videos.map(v => <option key={v.id} value={v.id}>{v.video_url}</option>)}
-            </select>
-          </div>
-        </section>
-
-        <section className="panel create-panel">
-          <h2>3. إنشاء سجل المثال</h2>
-
-          <label>
-            اسم المثال
-            <input value={exampleName} onChange={(event) => setExampleName(event.target.value)} placeholder="مثال: مراجعة الضرب" />
           </label>
 
           <label>
             صورة السؤال
-            <input type="file" accept="image/*" onChange={handleQuestionImageUpload} />
-            {uploadingQuestion && <span>جاري الرفع...</span>}
-            {questionImageUrl && <img src={questionImageUrl} alt="Question preview" style={{ width: '100px', marginTop: '10px', display: 'block' }} />}
+            <input ref={questionImageInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleQuestionImageUpload} />
+            <button type="button" className="primary-button" onClick={chooseQuestionImage}>
+              {questionImageFile ? `الصورة المختارة: ${questionImageFile.name}` : 'اختيار صورة السؤال'}
+            </button>
           </label>
 
           <label>
             الصورة المصغرة (Thumbnail)
-            <input type="file" accept="image/*" onChange={handleThumbnailUpload} />
-            {uploadingThumbnail && <span>جاري الرفع...</span>}
-            {thumbnailUrl && <img src={thumbnailUrl} alt="Thumbnail preview" style={{ width: '100px', marginTop: '10px', display: 'block' }} />}
+            <input ref={thumbnailInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleThumbnailUpload} />
+            <button type="button" className="primary-button" onClick={chooseThumbnail}>
+              {thumbnailFile ? `الصورة المختارة: ${thumbnailFile.name}` : 'اختيار الصورة المصغرة'}
+            </button>
+          </label>
+
+          <label>
+            ملف الفيديو
+            <input
+              ref={videoInputRef}
+              type="file"
+              accept="video/*"
+              style={{ display: 'none' }}
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null;
+                setVideoFile(file);
+                void saveDraftFile('video', file);
+              }}
+            />
+            <button type="button" className="primary-button" onClick={chooseVideo}>
+              {videoFile ? `الفيديو المختار: ${videoFile.name}` : 'اختيار الفيديو من الجهاز'}
+            </button>
           </label>
 
           <div className="options-section">
@@ -443,21 +514,20 @@ export const CreateExamplePage = () => {
                     صحيح
                   </label>
                   {dynamicOptions.length > 1 && (
-                    <button className="remove-option-btn" onClick={() => removeOption(opt.id)}>حذف</button>
+                    <button type="button" className="remove-option-btn" onClick={() => removeOption(opt.id)}>حذف</button>
                   )}
                 </div>
               ))}
             </div>
-            <button className="add-option-btn" onClick={addOption}>+ إضافة خيار</button>
+            <button type="button" className="add-option-btn" onClick={addOption}>+ إضافة خيار</button>
           </div>
 
-          <button className="primary-button" style={{ width: '100%', marginTop: '20px' }} onClick={createExample} disabled={saving || uploadingQuestion || uploadingThumbnail}>
-            {saving ? 'جاري الإرسال...' : 'إرسال المثال'}
+          <button type="submit" className="primary-button" style={{ width: '100%', marginTop: '20px' }} disabled={saving}>
+            {saving ? 'جاري رفع وإنشاء المثال...' : 'رفع المثال'}
           </button>
 
           {message && <div className="form-message">{message}</div>}
-        </section>
-      </div>
+      </form>
     </div>
   );
 };
