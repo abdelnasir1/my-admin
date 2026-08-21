@@ -93,7 +93,7 @@ const hasDirectoryPermission = async (directory: FileSystemDirectoryHandle) => {
   return false;
 };
 
-const getFilePickerAcceptTypes = (accept: string) => {
+const getFilePickerAcceptTypes = (accept: string): Record<string, string[]> => {
   if (accept === 'image/*') {
     return {
       'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'],
@@ -106,7 +106,9 @@ const getFilePickerAcceptTypes = (accept: string) => {
     };
   }
 
-  return { '*/*': ['*'] };
+  return {
+    '*/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg', '.mp4', '.mov', '.webm', '.avi', '.mkv', '.m4v'],
+  };
 };
 
 const openRememberedFilePicker = async ({ id, accept }: FilePickerOptions) => {
@@ -114,15 +116,16 @@ const openRememberedFilePicker = async ({ id, accept }: FilePickerOptions) => {
 
   const pickerWindow = window as PickerWindow;
   const directory = await loadDirectory(id);
+  const pickerTypes: { description: string; accept: Record<string, string[]> }[] = [{
+    description: accept === 'image/*' ? 'Images' : accept === 'video/*' ? 'Videos' : 'Files',
+    accept: getFilePickerAcceptTypes(accept),
+  }];
 
   const [fileHandle] = await pickerWindow.showOpenFilePicker({
     id,
     multiple: false,
     startIn: directory ?? undefined,
-    types: [{
-      description: accept === 'image/*' ? 'Images' : accept === 'video/*' ? 'Videos' : 'Files',
-      accept: getFilePickerAcceptTypes(accept),
-    }],
+    types: pickerTypes,
   });
 
   return fileHandle ? fileHandle.getFile() : null;
