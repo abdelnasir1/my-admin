@@ -21,7 +21,6 @@ type PickerWindow = Window & typeof globalThis & {
     startIn?: FileSystemDirectoryHandle;
     types: { description: string; accept: Record<string, string[]> }[];
   }) => Promise<{ getFile: () => Promise<File> }[]>;
-  showDirectoryPicker: (options: { id: string; mode: 'read' }) => Promise<FileSystemDirectoryHandle>;
 };
 
 type PermissionDirectoryHandle = FileSystemDirectoryHandle & {
@@ -94,22 +93,36 @@ const hasDirectoryPermission = async (directory: FileSystemDirectoryHandle) => {
   return false;
 };
 
+const getFilePickerAcceptTypes = (accept: string) => {
+  if (accept === 'image/*') {
+    return {
+      'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'],
+    };
+  }
+
+  if (accept === 'video/*') {
+    return {
+      'video/*': ['.mp4', '.mov', '.webm', '.avi', '.mkv', '.m4v'],
+    };
+  }
+
+  return { '*/*': ['*'] };
+};
+
 const openRememberedFilePicker = async ({ id, accept }: FilePickerOptions) => {
   if (!('showOpenFilePicker' in window)) return null;
 
   const pickerWindow = window as PickerWindow;
-  let directory = await loadDirectory(id);
-
-  if (!directory || !(await hasDirectoryPermission(directory))) {
-    directory = await pickerWindow.showDirectoryPicker({ id, mode: 'read' });
-    await saveDirectory(id, directory);
-  }
+  const directory = await loadDirectory(id);
 
   const [fileHandle] = await pickerWindow.showOpenFilePicker({
     id,
     multiple: false,
-    startIn: directory,
-    types: [{ description: accept, accept: { [accept]: [] } }],
+    startIn: directory ?? undefined,
+    types: [{
+      description: accept === 'image/*' ? 'Images' : accept === 'video/*' ? 'Videos' : 'Files',
+      accept: getFilePickerAcceptTypes(accept),
+    }],
   });
 
   return fileHandle ? fileHandle.getFile() : null;
