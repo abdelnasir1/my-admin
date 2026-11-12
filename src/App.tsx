@@ -10,6 +10,7 @@ import { type FormEvent, useEffect, useMemo, useState } from 'react'
 
 import { CreateExamplePage, ExampleList } from './pages/examples'
 import { CategoryList, CreateCategoryPage } from './pages/categories'
+import { PromoPage } from './pages/promo'
 import './App.css'
 
 import authProvider from './providers/auth'
@@ -563,6 +564,7 @@ function Shell() {
     { label: 'لوحة التحكم', to: '/' },
     ...resourceMeta.map((item) => ({ label: item.label, to: item.path })),
     { label: 'إنشاء مثال', to: '/examples/create' },
+    { label: 'صورة الإعلان', to: '/promo' },
   ]
 
   return (
@@ -603,6 +605,7 @@ function Shell() {
           ))}
           <Route path="/examples/create" element={<CreateExamplePage />} />
           <Route path="/categories/create" element={<CreateCategoryPage />} />
+          <Route path="/promo" element={<PromoPage />} />
         </Routes>
       </main>
     </div>
