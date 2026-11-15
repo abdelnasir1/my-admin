@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabaseClient } from '../../providers/supabase-client';
 import { useDashboardStore } from '../../store/dashboardStore';
+import { PAGE_SIZE, Pager } from '../shared';
 
 type TableRow = Record<string, any>;
 
@@ -29,6 +30,8 @@ export const ExampleList = () => {
   const [rows, setRows] = useState<TableRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState(0);
 
   const deleteExample = async (id: string) => {
     if (!window.confirm('هل تريد حذف هذا المثال؟')) return;
@@ -40,6 +43,7 @@ export const ExampleList = () => {
     }
 
     setRows((currentRows) => currentRows.filter((row) => row.id !== id));
+    setTotal((current) => Math.max(0, current - 1));
   };
 
   // Fetch Level 3 Categories
@@ -63,24 +67,30 @@ export const ExampleList = () => {
       setIsLoading(true);
       setError(null);
 
-      let query = supabaseClient.from('examples').select('*');
+      let query = supabaseClient.from('examples').select('*', { count: 'exact' });
 
       if (exampleCategoryId) {
         query = query.eq('parent_category', exampleCategoryId);
       }
 
-      const { data, error: fetchError } = await query.limit(100);
+      // One page at a time. Ordered by name so the pages stay stable.
+      const from = page * PAGE_SIZE;
+      const { data, error: fetchError, count } = await query
+        .order('name')
+        .order('id')
+        .range(from, from + PAGE_SIZE - 1);
 
       if (fetchError) {
         setError(fetchError.message);
         setRows([]);
       } else {
         setRows(data ?? []);
+        setTotal(count ?? 0);
       }
       setIsLoading(false);
     }
     loadExamples();
-  }, [exampleCategoryId]);
+  }, [exampleCategoryId, page]);
 
   const columns = useMemo(() => {
     if (rows.length === 0) return [];
@@ -113,7 +123,7 @@ export const ExampleList = () => {
           <select
             id="category-filter"
             value={exampleCategoryId}
-            onChange={(e) => setExampleCategoryId(e.target.value)}
+            onChange={(e) => { setExampleCategoryId(e.target.value); setPage(0); }}
             style={{
               background: 'rgba(15, 23, 42, 0.9)',
               color: 'white',
@@ -129,7 +139,7 @@ export const ExampleList = () => {
             ))}
           </select>
         </div>
-        <p style={{ marginTop: '10px' }}>{rows.length} سجل تم استرجاعه</p>
+        <p style={{ marginTop: '10px' }}>{total} مثال</p>
       </div>
 
       {isLoading ? (
@@ -142,6 +152,7 @@ export const ExampleList = () => {
           <p>{exampleCategoryId ? "لا توجد أمثلة مرتبطة بهذا القسم حالياً." : "قاعدة البيانات فارغة "}</p>
         </div>
       ) : (
+        <>
         <div className="table-card large-table">
           <table>
             <thead>
@@ -174,6 +185,8 @@ export const ExampleList = () => {
             </tbody>
           </table>
         </div>
+        <Pager page={page} total={total} onChange={setPage} />
+        </>
       )}
     </div>
   );

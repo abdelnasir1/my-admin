@@ -689,3 +689,10 @@ button {
     gap: 14px;
   }
 }
+
+/* Forms that should not stretch across the whole working area: half the
+   width on wide screens, full width on narrow ones. */
+.example-form,
+.half-width-form {
+  width: max(50%, min(100%, 460px));
+}

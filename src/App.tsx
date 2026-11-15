@@ -5,12 +5,16 @@ import routerProvider, {
   UnsavedChangesNotifier,
 } from '@refinedev/react-router'
 import { dataProvider, liveProvider } from '@refinedev/supabase'
-import { BrowserRouter, Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router'
+import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 
 import { CreateExamplePage, ExampleList } from './pages/examples'
 import { CategoryList, CreateCategoryPage } from './pages/categories'
 import { PromoPage } from './pages/promo'
+import { ProfilesPage } from './pages/profiles'
+import { VideosPage } from './pages/videos'
+import { CreateSubscriptionPage, SubscriptionsPage } from './pages/subscriptions'
+import { FeedbackPage } from './pages/feedback'
 import './App.css'
 
 import authProvider from './providers/auth'
@@ -37,13 +41,6 @@ type ProfileRow = TableRow & {
 }
 
 const verificationUrl = '/verify/storage'
-
-const dashboardStats = [
-  { label: 'الملفات الشخصية', value: '24', change: '+4 هذا الأسبوع' },
-  { label: 'الفيديوهات', value: '86', change: '+12 هذا الشهر' },
-  { label: 'الاشتراكات النشطة', value: '18', change: '+3 اليوم' },
-  { label: 'المدفوعات المعلقة', value: '6', change: '2 عاجل' },
-]
 
 const allowedEmails = (import.meta.env.VITE_ALLOWED_EMAILS || 'you@example.com,admin@example.com')
   .split(',')
@@ -191,86 +188,6 @@ function DatabaseTablePage({
                   ))}
                 </tr>
               ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  )
-}
-
-type DatabaseVideo = {
-  id: string
-  video_url: string
-  is_premium?: boolean | null
-  plan_type?: string | null
-}
-
-function VideosPage() {
-  const [videos, setVideos] = useState<DatabaseVideo[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    async function loadVideos() {
-      setLoading(true)
-      setError(null)
-
-      const { data, error: listError } = await supabaseClient
-        .from('videos')
-        .select('id, video_url, is_premium, plan_type')
-        .order('id', { ascending: false })
-        .limit(100)
-
-      if (listError) {
-        setError(listError.message)
-      } else {
-        setVideos((data ?? []) as DatabaseVideo[])
-      }
-
-      setLoading(false)
-    }
-
-    loadVideos()
-  }, [])
-
-  return (
-    <div className="teacher-page">
-      <header className="page-header">
-        <div>
-          <p className="eyebrow">التخزين</p>
-          <h1>الفيديوهات المرفوعة</h1>
-        </div>
-        <Link to="/examples/create" className="primary-button button-link">رفع فيديو</Link>
-      </header>
-
-      <div className="panel description-panel">
-        <h2>محتويات بوكيه الفيديوهات</h2>
-        <p>{videos.length} فيديو مرفوع</p>
-      </div>
-
-      {loading ? (
-        <div className="empty-state"><p>جاري تحميل الفيديوهات...</p></div>
-      ) : error ? (
-        <div className="empty-state"><h2>مشكلة في الاتصال</h2><p>{error}</p></div>
-      ) : videos.length === 0 ? (
-        <div className="empty-state"><h2>لا توجد فيديوهات</h2><p>ارفع فيديو جديداً ليظهر هنا.</p></div>
-      ) : (
-        <div className="table-card large-table">
-          <table>
-            <thead>
-              <tr><th>الرابط</th><th>نوع الوصول</th><th>نوع الخطة</th></tr>
-            </thead>
-            <tbody>
-              {videos.map((video) => {
-                return (
-                  <tr key={video.id}>
-                    <td><a className="receipt-link" href={video.video_url} target="_blank" rel="noreferrer">فتح الفيديو</a></td>
-                    <td>{video.is_premium ? 'مدفوع' : 'مجاني'}</td>
-                    <td>{video.plan_type ?? '—'}</td>
-                  </tr>
-                )
-              })}
             </tbody>
           </table>
         </div>
@@ -460,89 +377,6 @@ function PaymentsPage() {
   )
 }
 
-function TeacherDashboard() {
-  return (
-    <div className="teacher-page">
-      <header className="page-header">
-        <div>
-          <p className="eyebrow">مساحة عمل المعلم</p>
-          <h1>لوحة التحكم</h1>
-        </div>
-        <button className="primary-button">محتوى جديد</button>
-      </header>
-
-      <section className="stats-grid">
-        {dashboardStats.map((item) => (
-          <article key={item.label} className="stat-card">
-            <span>{item.label}</span>
-            <strong>{item.value}</strong>
-            <small>{item.change}</small>
-          </article>
-        ))}
-      </section>
-
-      <section className="content-grid">
-        <article className="panel">
-          <div className="panel-header">
-            <h2>سير التعلم</h2>
-            <button className="ghost-button">نظرة عامة</button>
-          </div>
-          <ul className="list-stack">
-            <li>
-              <div>
-                <strong>أقسام الدورة</strong>
-                <span>تنظيم المنهج حسب المستوى</span>
-              </div>
-              <time>جاهز</time>
-            </li>
-            <li>
-              <div>
-                <strong>مكتبة الفيديو</strong>
-                <span>المحتوى المتميز والعام</span>
-              </div>
-              <time>مباشر</time>
-            </li>
-            <li>
-              <div>
-                <strong>أمثلة الممارسة</strong>
-                <span>أسئلة مرتبطة بالفيديوهات</span>
-              </div>
-              <time>مسودة</time>
-            </li>
-          </ul>
-        </article>
-
-        <article className="panel">
-          <div className="panel-header">
-            <h2>نظرة عامة على المخطط</h2>
-            <button className="ghost-button">تحديث</button>
-          </div>
-          <div className="table-card">
-            <table>
-              <thead>
-                <tr>
-                  <th>القسم</th>
-                  <th>الغرض</th>
-                  <th>الحالة</th>
-                </tr>
-              </thead>
-              <tbody>
-                {resourceMeta.map((item) => (
-                  <tr key={item.key}>
-                    <td>{item.label}</td>
-                    <td>{item.description}</td>
-                    <td><span className="status-badge">نشط</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </article>
-      </section>
-    </div>
-  )
-}
-
 function Shell() {
   const { setActiveTab } = useDashboardStore();
   const location = useLocation();
@@ -561,9 +395,9 @@ function Shell() {
   }
 
   const navItems = [
-    { label: 'لوحة التحكم', to: '/' },
     ...resourceMeta.map((item) => ({ label: item.label, to: item.path })),
     { label: 'إنشاء مثال', to: '/examples/create' },
+    { label: 'إضافة اشتراك', to: '/subscriptions/create' },
     { label: 'صورة الإعلان', to: '/promo' },
   ]
 
@@ -573,7 +407,7 @@ function Shell() {
         <div className="brand">إدارة التعليم</div>
         <nav className="sidebar-nav">
           {navItems.map((item) => (
-            <NavLink key={item.to} to={item.to} end={item.to === '/examples'} className={({ isActive }) => (isActive ? 'active' : '')}>
+            <NavLink key={item.to} to={item.to} end={item.to === '/examples' || item.to === '/subscriptions'} className={({ isActive }) => (isActive ? 'active' : '')}>
               {item.label}
             </NavLink>
           ))}
@@ -583,7 +417,8 @@ function Shell() {
 
       <main className="main-panel">
         <Routes>
-          <Route index element={<TeacherDashboard />} />
+          {/* No dashboard page: the app opens on the examples table. */}
+          <Route index element={<Navigate to="/examples" replace />} />
           {resourceMeta.map((item) => (
             <Route
               key={item.key}
@@ -597,6 +432,12 @@ function Shell() {
                   <PaymentsPage />
                 ) : item.key === 'videos' ? (
                   <VideosPage />
+                ) : item.key === 'profiles' ? (
+                  <ProfilesPage />
+                ) : item.key === 'subscriptions' ? (
+                  <SubscriptionsPage />
+                ) : item.key === 'feedback' ? (
+                  <FeedbackPage />
                 ) : (
                   <DatabaseTablePage resource={item.key} title={item.label} description={item.description} explanation={item.explanation} />
                 )
@@ -606,6 +447,7 @@ function Shell() {
           <Route path="/examples/create" element={<CreateExamplePage />} />
           <Route path="/categories/create" element={<CreateCategoryPage />} />
           <Route path="/promo" element={<PromoPage />} />
+          <Route path="/subscriptions/create" element={<CreateSubscriptionPage />} />
         </Routes>
       </main>
     </div>
