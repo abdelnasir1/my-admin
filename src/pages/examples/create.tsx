@@ -424,7 +424,8 @@ export const CreateExamplePage = () => {
       if (error) throw new Error(error.message);
 
       setMessage(`تم إنشاء المثال بنجاح: ${data?.name ?? 'سجل جديد'}`);
-      setSelectedCategoryId('');
+      // The three section filters (level 1, 2 and 3) stay as they are, so the
+      // next example goes into the same section without picking it again.
       setExampleName('');
       setVideoPremium(true);
       setPlanType('basicbook');
