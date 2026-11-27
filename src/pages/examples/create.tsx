@@ -120,8 +120,6 @@ export const CreateExamplePage = () => {
   const [selectedLevel2Id, setSelectedLevel2Id] = useState(exampleDraft.selectedLevel2Id);
   const [selectedCategoryId, setSelectedCategoryId] = useState(exampleDraft.selectedCategoryId);
 
-  const [videoPremium, setVideoPremium] = useState(exampleDraft.videoPremium);
-  const [planType, setPlanType] = useState(exampleDraft.planType);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const questionImageInputRef = useRef<HTMLInputElement>(null);
@@ -173,8 +171,8 @@ export const CreateExamplePage = () => {
   }, []);
 
   useEffect(() => {
-    setExampleDraft({ selectedLevel1Id,selectedLevel2Id,selectedCategoryId, videoPremium, planType, exampleName, dynamicOptions });
-  }, [selectedLevel1Id, selectedLevel2Id, selectedCategoryId, videoPremium, planType, exampleName, dynamicOptions, setExampleDraft]);
+    setExampleDraft({ ...useDashboardStore.getState().exampleDraft, selectedLevel1Id, selectedLevel2Id, selectedCategoryId, exampleName, dynamicOptions });
+  }, [selectedLevel1Id, selectedLevel2Id, selectedCategoryId, exampleName, dynamicOptions, setExampleDraft]);
 
 
   useEffect(() => {
@@ -182,8 +180,6 @@ export const CreateExamplePage = () => {
       setSelectedLevel1Id(draft.selectedLevel1Id);
       setSelectedLevel2Id(draft.selectedLevel2Id);
       setSelectedCategoryId(draft.selectedCategoryId);
-      setVideoPremium(draft.videoPremium);
-      setPlanType(draft.planType);
       setExampleName(draft.exampleName);
       setDynamicOptions(draft.dynamicOptions);
     };
@@ -206,6 +202,23 @@ export const CreateExamplePage = () => {
   const level3Options = categories.filter(
     (c) => Number(c.level) === 3 && c.parent_id === selectedLevel2Id
   );
+
+  // Access is no longer picked by hand:
+  // - an example whose name starts with FREE_YEAR is free (plan does not matter);
+  // - any other year is paid, and the plan comes from the level 1 section name.
+  const FREE_YEAR = '2026';
+  const exampleYear = exampleName.trim().slice(0, 4);
+  const isFreeExample = exampleYear === FREE_YEAR;
+  const level1Name: string =
+    level1Options.find((c) => c.id === selectedLevel1Id)?.name ?? '';
+  const planFromLevel1 = (name: string): string | null => {
+    if (name.includes('الثاني')) return 'secondbook_advance';
+    if (name.includes('الأول')) return 'firstbook_advance';
+    if (name.includes('الأساسية')) return 'basicbook';
+    return null;
+  };
+  const videoPremium = !isFreeExample;
+  const planType: string | null = isFreeExample ? null : planFromLevel1(level1Name);
 
   const addOption = () => {
     setDynamicOptions([...dynamicOptions, { id: Math.random().toString(), text: '', isCorrect: false }]);
@@ -387,6 +400,11 @@ export const CreateExamplePage = () => {
       return;
     }
 
+    if (!isFreeExample && !planType) {
+      setMessage(`تعذر تحديد الخطة من اسم القسم "${level1Name}". يجب أن يحتوي على: أساس / أول / ثاني.`);
+      return;
+    }
+
     const validOptions = dynamicOptions.filter(opt => opt.text.trim() !== '');
     if (validOptions.length === 0) {
       setMessage('يرجى إضافة خيار واحد على الأقل.');
@@ -427,8 +445,6 @@ export const CreateExamplePage = () => {
       // The three section filters (level 1, 2 and 3) stay as they are, so the
       // next example goes into the same section without picking it again.
       setExampleName('');
-      setVideoPremium(true);
-      setPlanType('basicbook');
       setVideoFile(null);
       setQuestionImageFile(null);
       setThumbnailFile(null);
@@ -514,23 +530,6 @@ export const CreateExamplePage = () => {
           <label>
             اسم المثال
             <input value={exampleName} onChange={(event) => setExampleName(event.target.value)} placeholder="مثال: مراجعة الضرب" />
-          </label>
-
-          <label>
-            نوع الوصول
-            <select value={String(videoPremium)} onChange={(event) => setVideoPremium(event.target.value === 'true')}>
-              <option value="true">مدفوع (Premium)</option>
-              <option value="false">مجاني</option>
-            </select>
-          </label>
-
-          <label>
-            نوع الخطة
-            <select value={planType} onChange={(event) => setPlanType(event.target.value)}>
-              <option value="basicbook">أساسية</option>
-              <option value="firstbook_advance">متخصصة كتاب أول</option>
-              <option value="secondbook_advance">متخصصة كتاب ثاني</option>
-            </select>
           </label>
 
           <label>
